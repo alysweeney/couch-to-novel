@@ -102,6 +102,9 @@ service cloud.firestore {
     match /users/{userId}/novelEntries/{entryId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    match /users/{userId}/warmupWriting/{pieceId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
 ```

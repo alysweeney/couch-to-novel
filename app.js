@@ -221,8 +221,10 @@ function projectedFinish(project, entries) {
 let currentUser = null;
 let projectCache = null;
 let entriesCache = [];
+let warmupsCache = [];
 let unsubProject = null;
 let unsubEntries = null;
+let unsubWarmups = null;
 
 function sortedEntries() {
   return entriesCache.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -308,6 +310,7 @@ function render() {
   const route = getRoute();
   if (route === 'map') app.appendChild(renderMap());
   else if (route === 'learn') app.appendChild(renderLearn());
+  else if (route === 'studio') app.appendChild(renderStudio());
   else if (route === 'trends') app.appendChild(renderTrends());
   else app.appendChild(renderToday());
 }
@@ -589,7 +592,14 @@ function renderToday() {
        </div>`
     : '';
 
-  const wrap = el(`<div>${headerCard}${lessonCard}${warmupCard}${mainCard}${logCard}${cooldownCard}${statsCard}</div>`);
+  // Three groups rather than a flat list, so wide screens can put the session
+  // in one column and status in a rail without changing the mobile order.
+  const wrap = el(`
+    <div class="view-today">
+      <div class="grp-head">${headerCard}${lessonCard}</div>
+      <div class="grp-main">${warmupCard}${mainCard}${logCard}${cooldownCard}</div>
+      <div class="grp-side">${statsCard}</div>
+    </div>`);
 
   const readBtn = wrap.querySelector('#read-lesson');
   if (readBtn) readBtn.addEventListener('click', () => openLesson(state.nextLesson));
@@ -677,11 +687,153 @@ function openPasteCounter(targetInput) {
   text.focus();
 }
 
+// ---------- Warm-up studio ----------
+// A permanent home for the exercises, plus anywhere to actually write them.
+// Nothing here touches the manuscript: no word counts, no pacing, no beats.
+
+function openWarmupExercise(exercise) {
+  const pieces = warmupsCache
+    .filter((p) => p.exerciseId === exercise.id)
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const history = pieces.length
+    ? pieces.map((p) => `
+        <div class="piece" data-id="${p.id}">
+          <div class="piece-meta">${formatDate(p.date)} &middot; ${fmt(countWords(p.text))} words <button class="piece-del" data-del="${p.id}" aria-label="Delete">×</button></div>
+          <div class="piece-text">${escapeHtml(p.text)}</div>
+        </div>`).join('')
+    : '';
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Warm-up &middot; ${exercise.minutes} min</div>
+        <h2>${escapeHtml(exercise.name)}</h2>
+        <p class="beat-prompt">${escapeHtml(exercise.prompt)}</p>
+
+        <label for="wu-text">Write it here</label>
+        <textarea id="wu-text" style="min-height:200px" placeholder="Nothing here counts toward your novel."></textarea>
+        <div class="hint" id="wu-count">0 words</div>
+        <div style="height:12px"></div>
+        <button class="btn btn-primary" id="wu-save">Save this piece</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="wu-close" style="width:100%">Close</button>
+
+        ${pieces.length ? `<div style="height:22px"></div><div class="eyebrow">Your pieces (${pieces.length})</div>${history}` : ''}
+      </div>
+    </div>
+  `);
+
+  const text = modal.querySelector('#wu-text');
+  const count = modal.querySelector('#wu-count');
+  text.addEventListener('input', () => { count.textContent = `${fmt(countWords(text.value))} words`; });
+
+  modal.querySelector('#wu-save').addEventListener('click', async (ev) => {
+    if (!text.value.trim()) return;
+    ev.target.disabled = true;
+    await Cloud.saveWarmupCloud(currentUser.uid, {
+      id: uid(), date: todayStr(), exerciseId: exercise.id, text: text.value.trim(),
+    });
+    modal.remove();
+    render();
+  });
+
+  modal.querySelectorAll('[data-del]').forEach((btn) => {
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (!confirm('Delete this piece?')) return;
+      await Cloud.deleteWarmupCloud(currentUser.uid, btn.dataset.del);
+      modal.remove();
+      render();
+    });
+  });
+
+  modal.querySelector('#wu-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  document.getElementById('modal-root').appendChild(modal);
+  text.focus();
+}
+
+function renderStudio() {
+  const written = new Map();
+  warmupsCache.forEach((p) => written.set(p.exerciseId, (written.get(p.exerciseId) || 0) + 1));
+  const totalWords = warmupsCache.reduce((s, p) => s + countWords(p.text), 0);
+
+  const rows = WARMUPS.map((w) => {
+    const n = written.get(w.id) || 0;
+    return `
+      <div class="lesson-row" data-id="${w.id}">
+        <div class="lesson-mark">${n ? '✓' : '○'}</div>
+        <div>
+          <div class="lesson-title">${escapeHtml(w.name)}</div>
+          <div class="lesson-sub">${w.minutes} min${n ? ` &middot; ${n} piece${n > 1 ? 's' : ''}` : ''}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const recent = warmupsCache
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, 8)
+    .map((p) => {
+      const ex = WARMUPS.find((w) => w.id === p.exerciseId);
+      return `
+        <div class="piece" data-open="${p.exerciseId}">
+          <div class="piece-meta">${escapeHtml(ex ? ex.name : 'Warm-up')} &middot; ${formatDate(p.date)} &middot; ${fmt(countWords(p.text))} words</div>
+          <div class="piece-text piece-clamp">${escapeHtml(p.text)}</div>
+        </div>`;
+    }).join('');
+
+  const wrap = el(`
+    <div>
+      <div class="card">
+        <div class="eyebrow">The studio</div>
+        <h2>${WARMUPS.length} exercises</h2>
+        <p class="prose muted" style="margin:0">Scales, not the performance. Nothing written here counts toward your word target, touches your beats, or shows up in your novel's history &mdash; do them for fun, out of order, as many times as you like.</p>
+        ${warmupsCache.length ? `<div class="stats" style="margin-top:16px">
+          <div class="stat"><div class="stat-value">${warmupsCache.length}</div><div class="stat-label">Pieces</div></div>
+          <div class="stat"><div class="stat-value">${fmt(totalWords)}</div><div class="stat-label">Words, just for you</div></div>
+          <div class="stat"><div class="stat-value">${written.size}/${WARMUPS.length}</div><div class="stat-label">Tried</div></div>
+        </div>` : ''}
+      </div>
+
+      ${recent ? `<div class="card"><div class="eyebrow">Recent pieces</div>${recent}</div>` : ''}
+
+      <div class="card">
+        <div class="eyebrow">All exercises</div>
+        ${rows}
+      </div>
+    </div>
+  `);
+
+  wrap.querySelectorAll('.lesson-row').forEach((row) => {
+    row.addEventListener('click', () => openWarmupExercise(WARMUPS.find((w) => w.id === row.dataset.id)));
+  });
+  wrap.querySelectorAll('[data-open]').forEach((p) => {
+    p.addEventListener('click', () => openWarmupExercise(WARMUPS.find((w) => w.id === p.dataset.open)));
+  });
+
+  return wrap;
+}
+
 // ---------- Learn ----------
 
 function openLesson(lesson) {
   const paras = lesson.body.map((p) => `<p class="lesson-para">${escapeHtml(p)}</p>`).join('');
   const read = !!(projectCache.lessonMarks || {})[lesson.id];
+
+  const ex = lesson.example;
+  const exampleBlock = ex
+    ? `<div class="lesson-example">
+         <div class="eyebrow">${escapeHtml(ex.label || 'Worked example')}</div>
+         ${ex.before ? `<div class="ex-label">Before</div><div class="ex-text">${escapeHtml(ex.before)}</div>` : ''}
+         ${ex.after ? `<div class="ex-label">After</div><div class="ex-text ex-after">${escapeHtml(ex.after)}</div>` : ''}
+         ${ex.text ? `<div class="ex-text">${escapeHtml(ex.text)}</div>` : ''}
+         ${ex.source ? `<div class="ex-source">${escapeHtml(ex.source)}</div>` : ''}
+         ${ex.note ? `<p class="ex-note">${escapeHtml(ex.note)}</p>` : ''}
+       </div>`
+    : '';
 
   const modal = el(`
     <div class="modal-backdrop">
@@ -690,6 +842,7 @@ function openLesson(lesson) {
         <h2>${escapeHtml(lesson.title)}</h2>
         <div style="height:8px"></div>
         ${paras}
+        ${exampleBlock}
         <div class="lesson-practice">
           <div class="eyebrow" style="margin-bottom:4px">Try it</div>
           ${escapeHtml(lesson.practice)}
@@ -1014,7 +1167,7 @@ function openSettings() {
   }
 
   modal.querySelector('#st-export').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify({ project: projectCache, entries: entriesCache }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ project: projectCache, entries: entriesCache, warmups: warmupsCache }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `couch-to-novel-${todayStr()}.json`;
@@ -1058,10 +1211,12 @@ if (Cloud.isConfigured) {
 
     if (unsubProject) { unsubProject(); unsubProject = null; }
     if (unsubEntries) { unsubEntries(); unsubEntries = null; }
+    if (unsubWarmups) { unsubWarmups(); unsubWarmups = null; }
 
     if (!user) {
       projectCache = null;
       entriesCache = [];
+      warmupsCache = [];
       render();
       return;
     }
@@ -1072,6 +1227,10 @@ if (Cloud.isConfigured) {
     });
     unsubEntries = Cloud.subscribeEntries(user.uid, (entries) => {
       entriesCache = entries;
+      render();
+    });
+    unsubWarmups = Cloud.subscribeWarmups(user.uid, (pieces) => {
+      warmupsCache = pieces;
       render();
     });
   });

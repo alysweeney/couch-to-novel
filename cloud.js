@@ -105,6 +105,31 @@ export function deleteEntryCloud(uid, id) {
   return deleteDoc(doc(db, 'users', uid, 'novelEntries', id));
 }
 
+// --- Warm-up writing (kept entirely separate from the manuscript) ---
+// Its own collection rather than a flag on novelEntries: these never count
+// toward the word target, never affect pacing, and should survive starting a
+// different novel. They are scales, not the performance.
+
+export function subscribeWarmups(uid, onChange, onError) {
+  const ref = collection(db, 'users', uid, 'warmupWriting');
+  return onSnapshot(
+    ref,
+    (snap) => onChange(snap.docs.map((d) => d.data())),
+    (err) => {
+      console.error('Warm-up listener error', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export function saveWarmupCloud(uid, piece) {
+  return setDoc(doc(db, 'users', uid, 'warmupWriting', piece.id), piece);
+}
+
+export function deleteWarmupCloud(uid, id) {
+  return deleteDoc(doc(db, 'users', uid, 'warmupWriting', id));
+}
+
 export async function bulkImportCloud(uid, entries) {
   for (let i = 0; i < entries.length; i += BATCH_LIMIT) {
     const batch = writeBatch(db);

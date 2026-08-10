@@ -135,6 +135,16 @@ function programState(project, entries) {
   const warmup = pickWarmup(elapsedDays);
   const cooldown = pickCooldown(elapsedDays);
 
+  // Lessons unlock by position in the manuscript rather than by date, so one
+  // arrives when it's about to be useful instead of accumulating into a
+  // backlog. Foundations (beat: null) are open from day one.
+  const lessonMarks = project.lessonMarks || {};
+  const reachedBeats = new Set(
+    beats.filter((b) => total >= b.startWords || b.key === focus.key).map((b) => b.key)
+  );
+  const unlockedLessons = LESSONS.filter((l) => !l.beat || reachedBeats.has(l.beat));
+  const nextLesson = unlockedLessons.find((l) => !lessonMarks[l.id]) || null;
+
   return {
     beats,
     spans,
@@ -163,6 +173,10 @@ function programState(project, entries) {
     taskNumber,
     warmup,
     cooldown,
+    lessonMarks,
+    reachedBeats,
+    unlockedLessons,
+    nextLesson,
     pctComplete: clamp(total / project.targetWords, 0, 1),
   };
 }
@@ -291,6 +305,7 @@ function render() {
 
   const route = getRoute();
   if (route === 'map') app.appendChild(renderMap());
+  else if (route === 'learn') app.appendChild(renderLearn());
   else if (route === 'trends') app.appendChild(renderTrends());
   else app.appendChild(renderToday());
 }
@@ -563,7 +578,19 @@ function renderToday() {
       <div class="stat"><div class="stat-value">${fmt(state.remaining)}</div><div class="stat-label">Words to go</div></div>
     </div>`;
 
-  const wrap = el(`<div>${headerCard}${warmupCard}${mainCard}${logCard}${cooldownCard}${statsCard}</div>`);
+  const lessonCard = state.nextLesson
+    ? `<div class="card lesson-callout">
+         <div class="eyebrow">New lesson unlocked &middot; ${state.nextLesson.minutes} min</div>
+         <h2>${escapeHtml(state.nextLesson.title)}</h2>
+         <div style="height:10px"></div>
+         <button class="btn" id="read-lesson">Read it</button>
+       </div>`
+    : '';
+
+  const wrap = el(`<div>${headerCard}${lessonCard}${warmupCard}${mainCard}${logCard}${cooldownCard}${statsCard}</div>`);
+
+  const readBtn = wrap.querySelector('#read-lesson');
+  if (readBtn) readBtn.addEventListener('click', () => openLesson(state.nextLesson));
 
   wrap.querySelector('#warmup-done').addEventListener('click', async () => {
     await patchTodayEntry({ warmedUp: !todayEntry.warmedUp });
@@ -646,6 +673,102 @@ function openPasteCounter(targetInput) {
 
   document.getElementById('modal-root').appendChild(modal);
   text.focus();
+}
+
+// ---------- Learn ----------
+
+function openLesson(lesson) {
+  const paras = lesson.body.map((p) => `<p class="lesson-para">${escapeHtml(p)}</p>`).join('');
+  const read = !!(projectCache.lessonMarks || {})[lesson.id];
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">${escapeHtml((LESSON_MODULES.find((m) => m.id === lesson.module) || {}).name || '')} &middot; ${lesson.minutes} min</div>
+        <h2>${escapeHtml(lesson.title)}</h2>
+        <div style="height:8px"></div>
+        ${paras}
+        <div class="lesson-practice">
+          <div class="eyebrow" style="margin-bottom:4px">Try it</div>
+          ${escapeHtml(lesson.practice)}
+        </div>
+        <div style="height:16px"></div>
+        <button class="btn btn-primary" id="lesson-read">${read ? 'Close' : 'Mark as read'}</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="lesson-close" style="width:100%">Close</button>
+      </div>
+    </div>
+  `);
+
+  modal.querySelector('#lesson-read').addEventListener('click', async () => {
+    if (!read) {
+      const marks = { ...(projectCache.lessonMarks || {}), [lesson.id]: { date: todayStr() } };
+      await saveProject({ lessonMarks: marks });
+    }
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#lesson-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  document.getElementById('modal-root').appendChild(modal);
+  modal.querySelector('.modal-card').scrollTop = 0;
+}
+
+function renderLearn() {
+  const project = projectCache;
+  const state = programState(project, sortedEntries());
+  const unlockedIds = new Set(state.unlockedLessons.map((l) => l.id));
+
+  const modules = LESSON_MODULES.map((mod) => {
+    const lessons = lessonsForModule(mod.id);
+    if (!lessons.length) return '';
+
+    const items = lessons.map((l) => {
+      const unlocked = unlockedIds.has(l.id);
+      const read = !!state.lessonMarks[l.id];
+      const beat = l.beat ? state.beats.find((b) => b.key === l.beat) : null;
+      const sub = unlocked
+        ? `${l.minutes} min${read ? ' &middot; read' : ''}`
+        : `Unlocks at ${fmt(beat ? beat.startWords : 0)} words`;
+      return `
+        <div class="lesson-row${unlocked ? '' : ' is-locked'}${read ? ' is-read' : ''}" data-id="${l.id}">
+          <div class="lesson-mark">${unlocked ? (read ? '✓' : '●') : '🔒'}</div>
+          <div>
+            <div class="lesson-title">${escapeHtml(l.title)}</div>
+            <div class="lesson-sub">${sub}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    const done = lessons.filter((l) => state.lessonMarks[l.id]).length;
+    return `
+      <div class="card">
+        <div class="eyebrow">${escapeHtml(mod.name)} &middot; ${done}/${lessons.length} read</div>
+        <p class="prose muted" style="margin-bottom:10px">${escapeHtml(mod.blurb)}</p>
+        ${items}
+      </div>`;
+  }).join('');
+
+  const wrap = el(`
+    <div>
+      <div class="card">
+        <div class="eyebrow">The course</div>
+        <h2>${state.unlockedLessons.length} of ${LESSONS.length} unlocked</h2>
+        <p class="prose muted" style="margin:0">Lessons unlock as your manuscript reaches each beat, so one arrives when you're about to need it rather than all at once.</p>
+      </div>
+      ${modules}
+    </div>
+  `);
+
+  wrap.querySelectorAll('.lesson-row').forEach((row) => {
+    if (row.classList.contains('is-locked')) return;
+    row.addEventListener('click', () => {
+      openLesson(LESSONS.find((l) => l.id === row.dataset.id));
+    });
+  });
+
+  return wrap;
 }
 
 // ---------- Map ----------

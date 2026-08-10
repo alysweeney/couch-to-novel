@@ -139,7 +139,15 @@ Journey, a romance beat sheet) means adding another entry to `BEAT_TEMPLATES`
 with the same shape; nothing in `app.js` is hardcoded to Save the Cat. Genre
 word-count defaults for the setup wizard live in `GENRE_TARGETS` here too.
 
-**`curriculum.js` is the content** — what you actually do in a session:
+**`lessons.js` is the course** — 23 short craft readings in six modules, each
+with a practice exercise. They unlock by *position in the manuscript*, not by
+date: a lesson attached to a beat opens when your word count reaches that beat,
+and the three Foundations lessons are open from day one. That's deliberate.
+Course platforms drip weekly on a calendar; here the word count already knows
+where you are, so a lesson can arrive when it's about to be useful instead of
+piling into a backlog.
+
+**`curriculum.js` is the session content** — what you actually do day to day:
 
 - `WARMUPS` / `COOLDOWNS` — the exercises either side of the writing, picked by
   day index so a re-render never swaps one mid-session

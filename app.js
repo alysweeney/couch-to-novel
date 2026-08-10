@@ -142,7 +142,8 @@ function programState(project, entries) {
   const reachedBeats = new Set(
     beats.filter((b) => total >= b.startWords || b.key === focus.key).map((b) => b.key)
   );
-  const unlockedLessons = LESSONS.filter((l) => !l.beat || reachedBeats.has(l.beat));
+  const availableLessons = LESSONS.filter((l) => lessonAppliesToGenre(l, project.genre));
+  const unlockedLessons = availableLessons.filter((l) => !l.beat || reachedBeats.has(l.beat));
   const nextLesson = unlockedLessons.find((l) => !lessonMarks[l.id]) || null;
 
   return {
@@ -175,6 +176,7 @@ function programState(project, entries) {
     cooldown,
     lessonMarks,
     reachedBeats,
+    availableLessons,
     unlockedLessons,
     nextLesson,
     pctComplete: clamp(total / project.targetWords, 0, 1),
@@ -721,7 +723,7 @@ function renderLearn() {
   const unlockedIds = new Set(state.unlockedLessons.map((l) => l.id));
 
   const modules = LESSON_MODULES.map((mod) => {
-    const lessons = lessonsForModule(mod.id);
+    const lessons = lessonsForModule(mod.id, project.genre);
     if (!lessons.length) return '';
 
     const items = lessons.map((l) => {
@@ -754,7 +756,7 @@ function renderLearn() {
     <div>
       <div class="card">
         <div class="eyebrow">The course</div>
-        <h2>${state.unlockedLessons.length} of ${LESSONS.length} unlocked</h2>
+        <h2>${state.unlockedLessons.length} of ${state.availableLessons.length} unlocked</h2>
         <p class="prose muted" style="margin:0">Lessons unlock as your manuscript reaches each beat, so one arrives when you're about to need it rather than all at once.</p>
       </div>
       ${modules}
@@ -953,8 +955,13 @@ function openSettings() {
         <label for="st-title">Working title</label>
         <input id="st-title" type="text" value="${escapeHtml(project.title)}" />
 
+        <label for="st-genre">Genre</label>
+        <select id="st-genre">${GENRE_TARGETS.map((g) => `<option value="${g.id}"${g.id === project.genre ? ' selected' : ''}>${g.label} (~${fmt(g.words)} words)</option>`).join('')}</select>
+        <div class="hint">Safe to change any time. Genre only sets the suggested word count and adds a few genre-specific lessons -- your beats, progress and history are untouched.</div>
+
         <label for="st-target">Target word count</label>
         <input id="st-target" type="number" inputmode="numeric" min="1000" step="1000" value="${project.targetWords}" />
+        <div class="hint" id="st-target-hint"></div>
 
         <label for="st-end">Target finish date</label>
         <input id="st-end" type="date" value="${project.targetDate}" />
@@ -977,10 +984,28 @@ function openSettings() {
 
   const save = modal.querySelector('#st-save');
   if (save) {
+    const genreSel = modal.querySelector('#st-genre');
+    const targetInput = modal.querySelector('#st-target');
+    const targetHint = modal.querySelector('#st-target-hint');
+
+    // Changing genre offers the new suggested length rather than silently
+    // overwriting it -- the target may well have been set deliberately, and
+    // rewriting someone's word goal behind their back would be rude.
+    genreSel.addEventListener('change', () => {
+      const g = GENRE_TARGETS.find((x) => x.id === genreSel.value);
+      if (!g || Number(targetInput.value) === g.words) { targetHint.innerHTML = ''; return; }
+      targetHint.innerHTML = `${escapeHtml(g.label)} usually runs about ${fmt(g.words)} words. <button class="btn-ghost" id="st-use-suggested" style="padding:0; font-size:12px; font-weight:600">Use that</button>`;
+      targetHint.querySelector('#st-use-suggested').addEventListener('click', () => {
+        targetInput.value = g.words;
+        targetHint.innerHTML = '';
+      });
+    });
+
     save.addEventListener('click', async () => {
       await saveProject({
         title: modal.querySelector('#st-title').value.trim() || 'Untitled',
-        targetWords: Number(modal.querySelector('#st-target').value) || project.targetWords,
+        genre: genreSel.value,
+        targetWords: Number(targetInput.value) || project.targetWords,
         targetDate: modal.querySelector('#st-end').value || project.targetDate,
       });
       modal.remove();

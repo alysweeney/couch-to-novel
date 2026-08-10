@@ -18,6 +18,7 @@ const LESSON_MODULES = [
   { id: 'm3', name: 'Act Two B', blurb: 'Pressure, collapse, and earning the low point.' },
   { id: 'm4', name: 'Act Three', blurb: 'Paying off everything you planted.' },
   { id: 'mc', name: 'Scene craft', blurb: 'The unit you already know how to write.' },
+  { id: 'mg', name: 'Your genre', blurb: "What your genre's readers require that general structure doesn't cover." },
 ];
 
 // `beat: null` unlocks immediately. Otherwise the lesson unlocks when your word
@@ -283,6 +284,53 @@ const LESSONS = [
   },
 ];
 
-function lessonsForModule(moduleId) {
-  return LESSONS.filter((l) => l.module === moduleId);
+// Genre-specific lessons. Deliberately few: causality, escalation and scene
+// craft don't change between genres, and a course that re-teaches structure
+// per genre is padding. These exist only where a genre's reader expectations
+// actually conflict with the general beat structure.
+LESSONS.push(
+  {
+    id: 'ls-romance-co-plot', module: 'mg', beat: 'b_story', minutes: 6,
+    genres: ['romantasy', 'romance'],
+    title: 'In romance, the B Story is not a subplot',
+    body: [
+      'This is the one place where Save the Cat will actively mislead you.',
+      'The standard structure files the relationship under B Story: a subplot that carries the theme and collides with the main plot in Act Three. In most genres that is right. In romance and romantasy it is wrong, and following it produces a book that romance readers will put down.',
+      'In these genres the relationship is a co-equal plot with its own complete arc — meeting, attraction, deepening, the crisis that seems to end it, and the earned reunion. It needs roughly half your page count, its own beats, and its own escalation. A reader who picked up a romantasy came for that arc at least as much as for the magic.',
+      'The practical fix is not to restructure. It is to run two beat sheets over the same manuscript: the plot beats you already have, and a romance arc laid alongside them. Where they land on the same page, the book sings.',
+    ],
+    practice: 'Sketch the relationship arc as its own five points. Then mark where each one falls against your existing beats. Anywhere the two are more than 10% apart, one of them is drifting.',
+  },
+  {
+    id: 'ls-two-arcs-one-midpoint', module: 'mg', beat: 'midpoint', minutes: 5,
+    genres: ['romantasy', 'romance'],
+    title: 'Two arcs, one midpoint',
+    body: [
+      'With two co-equal plots the danger is that they run in parallel and never touch — a fantasy plot with a romance happening beside it, rather than a book.',
+      'The join is the Midpoint. Whatever turns the external plot should also turn the relationship, in the same scene if you can manage it. The victory that raises the stakes is also the moment they admit something. The betrayal that starts the clock is also the betrayal between them.',
+      'When those two are the same event, the reader cannot separate the plot from the feeling, which is the whole appeal of the genre. When they are different events in different chapters, you have written two competent halves of two different books.',
+      'Same applies at All Is Lost. The lowest point of the plot and the lowest point of the relationship want to be one scene.',
+    ],
+    practice: 'Write your Midpoint twice — once as a plot event, once as a relationship event. Then find the single scene that is both.',
+  },
+  {
+    id: 'ls-world-through-friction', module: 'mg', beat: 'setup', minutes: 5,
+    genres: ['fantasy', 'historical-fantasy', 'romantasy', 'sci-fi'],
+    title: 'Deliver the world through friction',
+    body: [
+      'You will know far more about your world than the book can hold, and the temptation is to find places to put it. Resist by making a rule: the reader learns a piece of the world only when a character needs it and cannot get it easily.',
+      'Not "the guild has three tiers and the lowest cannot testify," but a character needing to testify and being turned away. The rule arrives as an obstacle, so it lands as story rather than as reference material.',
+      'This has a useful side effect. Any part of your world that never becomes an obstacle for anyone does not need to be on the page, which is a much easier cut to make than trying to judge whether a passage is "too much worldbuilding."',
+      'The other reliable move is entitlement: your POV character already knows this world and finds it unremarkable. Their boredom with something extraordinary tells the reader more than a paragraph of explanation, and it is faster.',
+    ],
+    practice: 'Take your three favourite worldbuilding facts. For each, write the scene where it stops somebody getting what they want. Any that resist are the ones to leave out.',
+  }
+);
+
+function lessonsForModule(moduleId, genre) {
+  return LESSONS.filter((l) => l.module === moduleId && (!l.genres || l.genres.indexOf(genre) >= 0));
+}
+
+function lessonAppliesToGenre(lesson, genre) {
+  return !lesson.genres || lesson.genres.indexOf(genre) >= 0;
 }

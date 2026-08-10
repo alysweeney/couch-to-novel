@@ -114,7 +114,26 @@ function programState(project, entries) {
   const daysLeft = Math.max(0, daysBetween(today, project.targetDate));
   const expectedByNow = Math.round(project.targetWords * (elapsedDays / totalDays));
   const remaining = Math.max(0, project.targetWords - total);
-  const dailyTarget = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
+
+  // Optional week zero. During it there's no word target at all, so those days
+  // are excluded from the denominator -- otherwise the target would look
+  // achievable now and jump the moment drafting actually starts.
+  const onRampDays = project.onRampDays || 0;
+  const inOnRamp = elapsedDays < onRampDays;
+  const onRampToday = inOnRamp ? ON_RAMP[Math.min(elapsedDays, ON_RAMP.length - 1)] : null;
+  const draftingDaysLeft = Math.max(0, daysLeft - Math.max(0, onRampDays - elapsedDays));
+  const paceTarget = draftingDaysLeft > 0 ? Math.ceil(remaining / draftingDaysLeft) : remaining;
+  const dailyTarget = inOnRamp ? 0 : paceTarget;
+
+  // Bite-sized work within the current beat. Ticking a task is how the app
+  // learns where your story is; the word count only knows where your volume is.
+  const taskMarks = project.taskMarks || {};
+  const beatTasks = BEAT_TASKS[focus.key] || [];
+  const currentTask = beatTasks.find((t) => !taskMarks[t.id]) || null;
+  const taskNumber = currentTask ? beatTasks.indexOf(currentTask) + 1 : beatTasks.length;
+
+  const warmup = pickWarmup(elapsedDays);
+  const cooldown = pickCooldown(elapsedDays);
 
   return {
     beats,
@@ -134,6 +153,16 @@ function programState(project, entries) {
     calendarDelta: total - expectedByNow,
     remaining,
     dailyTarget,
+    inOnRamp,
+    onRampToday,
+    onRampDays,
+    paceTarget,
+    taskMarks,
+    beatTasks,
+    currentTask,
+    taskNumber,
+    warmup,
+    cooldown,
     pctComplete: clamp(total / project.targetWords, 0, 1),
   };
 }
@@ -197,11 +226,17 @@ async function removeEntry(id) {
 }
 
 async function logToday(words, note) {
+  await patchTodayEntry({ words, note: note || '' });
+}
+
+// Warm-up and cool-down ticks live on the day's entry rather than in their own
+// collection, so a session is one document and the backup stays readable.
+async function patchTodayEntry(patch) {
   const date = todayStr();
   const existing = entriesCache.find((e) => e.date === date);
   const entry = existing
-    ? { ...existing, words, note: note || '' }
-    : { id: uid(), date, words, note: note || '' };
+    ? { ...existing, ...patch }
+    : { id: uid(), date, words: 0, note: '', ...patch };
   await upsertEntry(entry);
 }
 
@@ -348,6 +383,12 @@ function renderSetup() {
         <input id="su-end" type="date" value="${defaultTarget}" />
         <div class="hint" id="su-pace"></div>
 
+        <label style="display:flex; align-items:flex-start; gap:9px; margin-top:16px; font-weight:600; color:var(--text)">
+          <input type="checkbox" id="su-onramp" checked style="width:auto; margin-top:2px" />
+          <span>Start with a ${ON_RAMP.length}-day warm-up week</span>
+        </label>
+        <div class="hint">No word targets and no manuscript for the first ${ON_RAMP.length} days -- short exercises to get writing again before the program starts. Couch to 5K doesn't put you on a 5K in week one either.</div>
+
         <div style="height:18px"></div>
         <button class="btn btn-primary" id="su-create">Start the program</button>
         <div class="error" id="su-error" hidden></div>
@@ -398,6 +439,8 @@ function renderSetup() {
       targetDate: end.value,
       templateId: DEFAULT_TEMPLATE_ID,
       beatMarks: {},
+      taskMarks: {},
+      onRampDays: wrap.querySelector('#su-onramp').checked ? ON_RAMP.length : 0,
       createdAt: new Date().toISOString(),
     });
     render();
@@ -418,15 +461,15 @@ function renderToday() {
   const project = projectCache;
   const entries = sortedEntries();
   const state = programState(project, entries);
+  const todayEntry = entries.find((e) => e.date === todayStr()) || {};
   const loggedToday = wordsOnDate(entries, todayStr());
   const streak = currentStreak(entries);
-  const existingNote = (entries.find((e) => e.date === todayStr()) || {}).note || '';
-
   const focus = state.focus;
-  const isMoment = focus.kind === 'moment';
 
   let structural;
-  if (state.momentDrift > 0) {
+  if (state.inOnRamp) {
+    structural = `<span class="pill">Warm-up week</span>`;
+  } else if (state.momentDrift > 0) {
     structural = `<span class="pill pill-bad">${fmt(state.momentDrift)} words past where ${escapeHtml(focus.name)} should land</span>`;
   } else if (state.dueMoment) {
     structural = `<span class="pill pill-warn">${escapeHtml(focus.name)} is due now</span>`;
@@ -436,56 +479,118 @@ function renderToday() {
     structural = `<span class="pill pill-good">Every beat written</span>`;
   }
 
-  const wrap = el(`
-    <div>
+  const headerCard = state.inOnRamp
+    ? `<div class="card">
+         <div class="eyebrow">Warm-up week &middot; day ${state.elapsedDays + 1} of ${state.onRampDays} &middot; ${escapeHtml(project.title)}</div>
+         <div class="today-target">No target <small>yet</small></div>
+         <div style="margin-top:10px">${structural}</div>
+         <div class="muted" style="font-size:13px; margin-top:8px">Drafting starts ${formatDateLong(addDays(project.startDate, state.onRampDays))} at about ${fmt(state.paceTarget)} words a day. Until then the only job is showing up.</div>
+       </div>`
+    : `<div class="card">
+         <div class="eyebrow">Day ${state.elapsedDays + 1} of ${state.totalDays} &middot; ${escapeHtml(project.title)}</div>
+         <div class="today-target">${fmt(state.dailyTarget)} <small>words today</small></div>
+         <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap">${pacePill(state)} ${structural}</div>
+         <div class="progress"><div class="progress-fill" style="width:${(state.pctComplete * 100).toFixed(1)}%"></div></div>
+         <div class="muted" style="font-size:13px">${fmt(state.total)} of ${fmt(project.targetWords)} words &middot; ${state.daysLeft} days left</div>
+       </div>`;
+
+  const warmupCard = `
+    <div class="card${todayEntry.warmedUp ? ' is-done' : ''}">
+      <div class="eyebrow">Warm-up &middot; ${state.warmup.minutes} min &middot; not the manuscript</div>
+      <h2>${escapeHtml(state.warmup.name)}</h2>
+      <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
+      <div style="height:12px"></div>
+      <button class="btn${todayEntry.warmedUp ? '' : ' btn-primary'}" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Done warming up'}</button>
+    </div>`;
+
+  let mainCard;
+  if (state.inOnRamp) {
+    const o = state.onRampToday;
+    mainCard = `
       <div class="card">
-        <div class="eyebrow">Day ${state.elapsedDays + 1} of ${state.totalDays} &middot; ${escapeHtml(project.title)}</div>
-        <div class="today-target">${fmt(state.dailyTarget)} <small>words today</small></div>
-        <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap">${pacePill(state)} ${structural}</div>
-
-        <div class="progress"><div class="progress-fill" style="width:${(state.pctComplete * 100).toFixed(1)}%"></div></div>
-        <div class="muted" style="font-size:13px">${fmt(state.total)} of ${fmt(project.targetWords)} words &middot; ${state.daysLeft} days left</div>
-      </div>
-
+        <div class="eyebrow">Today's work &middot; about ${o.minutes} min</div>
+        <h2>${escapeHtml(o.name)}</h2>
+        <p class="beat-prompt">${escapeHtml(o.prompt)}</p>
+      </div>`;
+  } else {
+    const t = state.currentTask;
+    const allDone = !t;
+    mainCard = `
       <div class="card">
-        <div class="eyebrow">${isMoment ? 'Scene due' : 'Current beat'}</div>
-        <h2>${escapeHtml(focus.name)}</h2>
-        <p class="prose muted" style="margin-bottom:0">${escapeHtml(focus.summary)}</p>
-        <p class="beat-prompt">${escapeHtml(focus.prompt)}</p>
-        ${isMoment ? `<div style="height:14px"></div><button class="btn" id="mark-beat">I wrote the ${escapeHtml(focus.name)}</button>` : ''}
-      </div>
+        <div class="eyebrow">${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
+        ${t ? `
+          <h2>${escapeHtml(t.label)}</h2>
+          <div class="session-meta">Assignment ${state.taskNumber} of ${state.beatTasks.length} &middot; may take more than one session</div>
+          <p class="beat-prompt">${escapeHtml(t.detail)}</p>
+          <div style="height:14px"></div>
+          <button class="btn" id="task-done">Mark this assignment done</button>
+        ` : `
+          <h2>${escapeHtml(focus.name)} is written</h2>
+          <p class="prose muted">${escapeHtml(focus.summary)}</p>
+          ${focus.kind === 'moment' && !state.marks[focus.key]
+            ? `<button class="btn btn-primary" id="mark-beat">Tick off ${escapeHtml(focus.name)}</button>`
+            : `<p class="prose muted" style="margin:0">Keep going. The word count moves you into the next beat.</p>`}
+        `}
+      </div>`;
+  }
 
-      <div class="card">
-        <div class="eyebrow">Log today</div>
-        <h2>${loggedToday ? `${fmt(loggedToday)} words logged` : 'Nothing logged yet'}</h2>
+  const logCard = `
+    <div class="card">
+      <div class="eyebrow">Log today</div>
+      <h2>${loggedToday ? `${fmt(loggedToday)} words logged` : 'Nothing logged yet'}</h2>
+      <label for="log-words">Words written today</label>
+      <input id="log-words" type="number" inputmode="numeric" min="0" step="10" value="${loggedToday || ''}" placeholder="0" />
+      <button class="btn btn-ghost" id="paste-count" style="margin-top:6px">or paste today's writing and count it</button>
+      <label for="log-note">Note (optional)</label>
+      <textarea id="log-note" placeholder="What happened in the story today?">${escapeHtml(todayEntry.note || '')}</textarea>
+      <div style="height:14px"></div>
+      <button class="btn btn-primary" id="log-save">Save today</button>
+    </div>`;
 
-        <label for="log-words">Words written today</label>
-        <input id="log-words" type="number" inputmode="numeric" min="0" step="10" value="${loggedToday || ''}" placeholder="0" />
-        <button class="btn btn-ghost" id="paste-count" style="margin-top:6px">or paste today's writing and count it</button>
+  const cooldownCard = `
+    <div class="card${todayEntry.cooledDown ? ' is-done' : ''}">
+      <div class="eyebrow">Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
+      <h2>${escapeHtml(state.cooldown.name)}</h2>
+      <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
+      <div style="height:12px"></div>
+      <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
+    </div>`;
 
-        <label for="log-note">Note (optional)</label>
-        <textarea id="log-note" placeholder="What happened in the story today?">${escapeHtml(existingNote)}</textarea>
+  const statsCard = `
+    <div class="stats card">
+      <div class="stat"><div class="stat-value">${streak}</div><div class="stat-label">Day streak</div></div>
+      <div class="stat"><div class="stat-value">${fmt(averagePerDay(entries, 14))}</div><div class="stat-label">Avg / day</div></div>
+      <div class="stat"><div class="stat-value">${fmt(state.remaining)}</div><div class="stat-label">Words to go</div></div>
+    </div>`;
 
-        <div style="height:14px"></div>
-        <button class="btn btn-primary" id="log-save">Save today</button>
-      </div>
+  const wrap = el(`<div>${headerCard}${warmupCard}${mainCard}${logCard}${cooldownCard}${statsCard}</div>`);
 
-      <div class="stats card">
-        <div class="stat">
-          <div class="stat-value">${streak}</div>
-          <div class="stat-label">Day streak</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value">${fmt(averagePerDay(entries, 14))}</div>
-          <div class="stat-label">Avg / day</div>
-        </div>
-        <div class="stat">
-          <div class="stat-value">${fmt(state.remaining)}</div>
-          <div class="stat-label">Words to go</div>
-        </div>
-      </div>
-    </div>
-  `);
+  wrap.querySelector('#warmup-done').addEventListener('click', async () => {
+    await patchTodayEntry({ warmedUp: !todayEntry.warmedUp });
+    render();
+  });
+
+  wrap.querySelector('#cooldown-done').addEventListener('click', async () => {
+    await patchTodayEntry({ cooledDown: !todayEntry.cooledDown });
+    render();
+  });
+
+  const taskBtn = wrap.querySelector('#task-done');
+  if (taskBtn) {
+    taskBtn.addEventListener('click', async () => {
+      const t = state.currentTask;
+      const taskMarks = { ...(project.taskMarks || {}), [t.id]: { date: todayStr(), words: state.total } };
+      const patch = { taskMarks };
+      // Finishing the last assignment for a moment ticks the beat itself, so
+      // the two never drift out of sync.
+      const stillOpen = state.beatTasks.filter((x) => !taskMarks[x.id]);
+      if (!stillOpen.length && focus.kind === 'moment') {
+        patch.beatMarks = { ...(project.beatMarks || {}), [focus.key]: { date: todayStr(), words: state.total } };
+      }
+      await saveProject(patch);
+      render();
+    });
+  }
 
   const markBtn = wrap.querySelector('#mark-beat');
   if (markBtn) {

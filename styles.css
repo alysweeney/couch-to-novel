@@ -220,6 +220,17 @@ textarea { resize: vertical; min-height: 74px; }
 }
 .today-target small { font-size: 15px; font-weight: 600; color: var(--muted); font-family: inherit; letter-spacing: 0; }
 
+/* A finished warm-up or cool-down recedes rather than disappearing, so the
+   session still reads as three parts once you're partway through it. */
+.card.is-done { opacity: 0.6; }
+.card.is-done .beat-prompt { color: var(--muted); }
+
+.session-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: -4px 0 2px;
+}
+
 .beat-prompt {
   font-size: 15px;
   line-height: 1.6;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'couch-to-novel-v1';
+const CACHE_NAME = 'couch-to-novel-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './app.js',
   './cloud.js',
   './beats.js',
+  './curriculum.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

@@ -35,11 +35,31 @@ off on the other:
 - **Structural pace** — is your word count where it should be *for the beat
   you're in*? At 52,000 words with no Midpoint written, you're bloating Act 2A.
 
+## A session has three parts
+
+Borrowed from Couch to 5K, where a session is never just "run" — it's warm-up
+walk, intervals, cool-down walk.
+
+- **Warm-up** (4–6 min) — a small exercise that never touches the manuscript.
+  Rotates through 24 of them, so the same one won't come round twice in a
+  month. The cost of a bad warm-up should be zero.
+- **Main** — the next bite-sized assignment in your current beat, not the whole
+  beat. A single assignment may span several sessions; the word target handles
+  volume, the assignment handles sequence.
+- **Cool-down** (1–2 min) — the highest-leverage part. Stop mid-sentence, leave
+  a note on what happens next, name why the next scene has to follow this one.
+  Starting tomorrow is cheap only if you stopped well today.
+
+There's also an optional **5-day warm-up week** before the program proper: no
+word targets, no manuscript, no beats. Couch to 5K doesn't put you on a 5K in
+week one.
+
 ## Features
 
 - **Today**: an adaptive daily word target (remaining words ÷ remaining days),
-  the beat you're currently in, and a written prompt for that beat. Log the
-  day's count by typing it or pasting your writing to have it counted.
+  the beat you're currently in, today's assignment, and a warm-up and cool-down
+  either side of it. Log the day's count by typing it or pasting your writing
+  to have it counted.
 - **Map**: all 15 beats with their word ranges, what's done, where you are, and
   which spans you've overrun.
 - **Trends**: cumulative words against the on-pace line, rolling averages, a
@@ -108,13 +128,30 @@ Firebase; everything after that first sign-in also works offline.)
    or two.
 5. On your phone, open that URL and use **Add to Home Screen** to install it.
 
-## Editing the beats
+## Editing the program
 
-The beat template lives in `beats.js` as a plain object — names, percentage
-positions, summaries, and the daily prompt for each beat. Edit that file and
-refresh. Adding a second structure (Hero's Journey, a romance beat sheet) means
-adding another entry to `BEAT_TEMPLATES` with the same shape; nothing in
-`app.js` is hardcoded to Save the Cat.
+Structure and content are deliberately separate files, so changing one never
+means touching the other.
 
-Genre word-count defaults for the setup wizard are in `GENRE_TARGETS` in the
-same file.
+**`beats.js` is the structure** — names, percentage positions, summaries, and
+whether each beat is a moment or a span. Adding a second framework (Hero's
+Journey, a romance beat sheet) means adding another entry to `BEAT_TEMPLATES`
+with the same shape; nothing in `app.js` is hardcoded to Save the Cat. Genre
+word-count defaults for the setup wizard live in `GENRE_TARGETS` here too.
+
+**`curriculum.js` is the content** — what you actually do in a session:
+
+- `WARMUPS` / `COOLDOWNS` — the exercises either side of the writing, picked by
+  day index so a re-render never swaps one mid-session
+- `ON_RAMP` — the optional warm-up week
+- `BEAT_TASKS` — ordered, bite-sized assignments keyed to beat keys in
+  `beats.js`
+
+Adding an assignment is appending an object with a unique `id`; completion is
+stored against that id, so **don't reuse or renumber ids** on beats you've
+already worked through.
+
+The prompts are written for someone who can already write a good scene and is
+learning to make scenes *require each other*, so they push at causality — the
+joins between beats rather than the beats themselves. If that's not your gap,
+rewrite them; nothing in the code depends on their wording.

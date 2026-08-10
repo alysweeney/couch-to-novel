@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#40567a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Draft" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<title>Couch to Novel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="topbar-title">Couch to Novel</h1>
+    <button id="settings-btn" class="icon-btn" aria-label="Settings" title="Project / Backup / Account">⚙️</button>
+  </header>
+
+  <main id="app"></main>
+
+  <nav class="bottomnav">
+    <button class="nav-btn" data-route="today">
+      <span class="nav-icon">✍️</span><span>Today</span>
+    </button>
+    <button class="nav-btn" data-route="map">
+      <span class="nav-icon">🗺️</span><span>Map</span>
+    </button>
+    <button class="nav-btn" data-route="trends">
+      <span class="nav-icon">📈</span><span>Trends</span>
+    </button>
+  </nav>
+
+  <div id="modal-root"></div>
+
+  <script src="beats.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

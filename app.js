@@ -135,6 +135,16 @@ function programState(project, entries) {
   const warmup = pickWarmup(elapsedDays);
   const cooldown = pickCooldown(elapsedDays);
 
+  // Blueprint phase. Soft gate: this is where new projects start and the app
+  // keeps pointing here, but nothing prevents switching to drafting. A
+  // programme you cannot leave is a trap for a writer whose actual risk is
+  // outlining forever.
+  const inBlueprint = project.phase === 'blueprint';
+  const bpMarks = project.blueprintMarks || {};
+  const bpTask = BLUEPRINT_TASKS.find((t) => !bpMarks[t.id]) || null;
+  const bpDone = BLUEPRINT_TASKS.filter((t) => bpMarks[t.id]).length;
+  const bpComplete = bpDone === BLUEPRINT_TASKS.length;
+
   // Lessons unlock by position in the manuscript rather than by date, so one
   // arrives when it's about to be useful instead of accumulating into a
   // backlog. Foundations (beat: null) are open from day one.
@@ -174,6 +184,11 @@ function programState(project, entries) {
     taskNumber,
     warmup,
     cooldown,
+    inBlueprint,
+    bpMarks,
+    bpTask,
+    bpDone,
+    bpComplete,
     lessonMarks,
     reachedBeats,
     availableLessons,
@@ -308,7 +323,7 @@ function render() {
   }
 
   const route = getRoute();
-  if (route === 'map') app.appendChild(renderMap());
+  if (route === 'story' || route === 'map') app.appendChild(renderStory());
   else if (route === 'learn') app.appendChild(renderLearn());
   else if (route === 'studio') app.appendChild(renderStudio());
   else if (route === 'trends') app.appendChild(renderTrends());
@@ -458,6 +473,12 @@ function renderSetup() {
       startDate: start.value,
       targetDate: end.value,
       templateId: DEFAULT_TEMPLATE_ID,
+      phase: 'blueprint',
+      blueprint: {},
+      characters: [],
+      beatNotes: {},
+      scenes: [],
+      blueprintMarks: {},
       beatMarks: {},
       taskMarks: {},
       onRampDays: wrap.querySelector('#su-onramp').checked ? ON_RAMP.length : 0,
@@ -481,6 +502,7 @@ function renderToday() {
   const project = projectCache;
   const entries = sortedEntries();
   const state = programState(project, entries);
+  if (state.inBlueprint) return renderBlueprintSession(project, entries, state);
   const todayEntry = entries.find((e) => e.date === todayStr()) || {};
   const loggedToday = wordsOnDate(entries, todayStr());
   const streak = currentStreak(entries);
@@ -685,6 +707,337 @@ function openPasteCounter(targetInput) {
 
   document.getElementById('modal-root').appendChild(modal);
   text.focus();
+}
+
+// ---------- Blueprint ----------
+
+const ARTIFACT_LABEL = {
+  premise: 'Premise',
+  logline: 'Logline',
+  theme: 'Theme',
+  notes: 'Notes',
+  characters: 'Cast',
+  beats: 'Beats',
+  scenes: 'Scene list',
+};
+
+async function startDrafting() {
+  // Soft gate: drafting begins whenever you say so. Start date resets to today
+  // so the pace maths reflects the runway you actually have left, rather than
+  // reporting you as weeks behind for time spent outlining.
+  await saveProject({ phase: 'draft', startDate: todayStr() });
+  navigate('today');
+  render();
+}
+
+function renderBlueprintSession(project, entries, state) {
+  const todayEntry = entries.find((e) => e.date === todayStr()) || {};
+  const task = state.bpTask;
+  const week = task ? BLUEPRINT_WEEKS.find((w) => w.week === task.week) : null;
+  const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
+
+  const headerCard = `
+    <div class="card">
+      <div class="eyebrow">Blueprint &middot; ${escapeHtml(project.title)}</div>
+      <div class="today-target">${state.bpDone}<small> of ${BLUEPRINT_TASKS.length} done</small></div>
+      <div class="progress"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="muted" style="font-size:13px">${week ? `Week ${week.week}: ${escapeHtml(week.name)}` : 'Blueprint complete'}</div>
+      <div style="height:14px"></div>
+      <button class="btn${state.bpComplete ? ' btn-primary' : ''}" id="start-draft">${state.bpComplete ? 'Start drafting' : 'Skip ahead to drafting'}</button>
+      ${state.bpComplete ? '' : '<div class="hint">You can leave the blueprint at any point. Outlining is the most comfortable place in the world to hide.</div>'}
+    </div>`;
+
+  const warmupCard = `
+    <div class="card${todayEntry.warmedUp ? ' is-done' : ''}">
+      <div class="eyebrow">Warm-up &middot; ${state.warmup.minutes} min</div>
+      <h2>${escapeHtml(state.warmup.name)}</h2>
+      <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
+      <div style="height:12px"></div>
+      <button class="btn${todayEntry.warmedUp ? '' : ' btn-primary'}" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Done warming up'}</button>
+    </div>`;
+
+  const mainCard = task
+    ? `<div class="card">
+         <div class="eyebrow">Today's work &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
+         <h2>${escapeHtml(task.name)}</h2>
+         <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
+         <div class="lesson-practice"><div class="eyebrow" style="margin-bottom:4px">Why</div>${escapeHtml(task.help)}</div>
+         <div style="height:14px"></div>
+         <div class="btn-row">
+           <button class="btn btn-primary" id="bp-open">Open your ${escapeHtml((ARTIFACT_LABEL[task.artifact] || '').toLowerCase())}</button>
+           <button class="btn" id="bp-done">Mark done</button>
+         </div>
+       </div>`
+    : `<div class="card">
+         <div class="eyebrow">Blueprint complete</div>
+         <h2>You have a book to write</h2>
+         <p class="prose muted">Premise, cast, fifteen beats and a scene list. The drafting programme picks up from here and every scene already knows what it is for.</p>
+       </div>`;
+
+  const cooldownCard = `
+    <div class="card${todayEntry.cooledDown ? ' is-done' : ''}">
+      <div class="eyebrow">Cool-down &middot; ${state.cooldown.minutes} min</div>
+      <h2>${escapeHtml(state.cooldown.name)}</h2>
+      <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
+      <div style="height:12px"></div>
+      <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
+    </div>`;
+
+  const weeksCard = `
+    <div class="card">
+      <div class="eyebrow">The four weeks</div>
+      ${BLUEPRINT_WEEKS.map((w) => {
+        const ts = blueprintTasksForWeek(w.week);
+        const done = ts.filter((t) => state.bpMarks[t.id]).length;
+        return `<div class="lesson-row" style="cursor:default">
+          <div class="lesson-mark">${done === ts.length ? '✓' : done ? '◐' : '○'}</div>
+          <div>
+            <div class="lesson-title">Week ${w.week}: ${escapeHtml(w.name)}</div>
+            <div class="lesson-sub">${done}/${ts.length} &middot; ${escapeHtml(w.blurb)}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  const wrap = el(`
+    <div class="view-today">
+      <div class="grp-head">${headerCard}</div>
+      <div class="grp-main">${warmupCard}${mainCard}${cooldownCard}</div>
+      <div class="grp-side">${weeksCard}</div>
+    </div>`);
+
+  wrap.querySelector('#warmup-done').addEventListener('click', async () => {
+    await patchTodayEntry({ warmedUp: !todayEntry.warmedUp });
+    render();
+  });
+  wrap.querySelector('#cooldown-done').addEventListener('click', async () => {
+    await patchTodayEntry({ cooledDown: !todayEntry.cooledDown });
+    render();
+  });
+  wrap.querySelector('#start-draft').addEventListener('click', async () => {
+    if (!state.bpComplete && !confirm('Leave the blueprint and start drafting? You can come back to it any time from the Story tab.')) return;
+    await startDrafting();
+  });
+
+  const open = wrap.querySelector('#bp-open');
+  if (open) open.addEventListener('click', () => openArtifactEditor(task.artifact));
+  const done = wrap.querySelector('#bp-done');
+  if (done) {
+    done.addEventListener('click', async () => {
+      await saveProject({ blueprintMarks: { ...(project.blueprintMarks || {}), [task.id]: { date: todayStr() } } });
+      render();
+    });
+  }
+
+  return wrap;
+}
+
+// ---------- Artifact editors ----------
+
+function openArtifactEditor(kind) {
+  if (kind === 'characters') return openCastEditor();
+  if (kind === 'beats') return openBeatNotesEditor();
+  if (kind === 'scenes') return openSceneEditor();
+  return openTextArtifact(kind);
+}
+
+function openTextArtifact(field) {
+  const bp = projectCache.blueprint || {};
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Blueprint</div>
+        <h2>${escapeHtml(ARTIFACT_LABEL[field] || field)}</h2>
+        <textarea id="ta-text" style="min-height:220px">${escapeHtml(bp[field] || '')}</textarea>
+        <div style="height:12px"></div>
+        <button class="btn btn-primary" id="ta-save">Save</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="ta-close" style="width:100%">Close</button>
+      </div>
+    </div>`);
+  modal.querySelector('#ta-save').addEventListener('click', async () => {
+    await saveProject({ blueprint: { ...bp, [field]: modal.querySelector('#ta-text').value } });
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#ta-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('modal-root').appendChild(modal);
+  modal.querySelector('#ta-text').focus();
+}
+
+function openCastEditor(editId) {
+  const cast = projectCache.characters || [];
+  const c = cast.find((x) => x.id === editId) || { id: uid(), name: '', role: '', want: '', need: '', wound: '', notes: '' };
+  const isNew = !cast.find((x) => x.id === c.id);
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Cast</div>
+        <h2>${isNew ? 'New character' : escapeHtml(c.name || 'Character')}</h2>
+        <label for="ch-name">Name</label>
+        <input id="ch-name" type="text" value="${escapeHtml(c.name)}" />
+        <label for="ch-role">Role</label>
+        <input id="ch-role" type="text" value="${escapeHtml(c.role)}" placeholder="Protagonist, antagonist, theme carrier..." />
+        <label for="ch-want">Want (external, they would say it out loud)</label>
+        <textarea id="ch-want">${escapeHtml(c.want)}</textarea>
+        <label for="ch-need">Need (internal, usually the opposite)</label>
+        <textarea id="ch-need">${escapeHtml(c.need)}</textarea>
+        <label for="ch-wound">Wound (a specific past event, not a condition)</label>
+        <textarea id="ch-wound">${escapeHtml(c.wound)}</textarea>
+        <label for="ch-notes">Notes</label>
+        <textarea id="ch-notes">${escapeHtml(c.notes)}</textarea>
+        <div style="height:14px"></div>
+        <button class="btn btn-primary" id="ch-save">Save</button>
+        <div style="height:8px"></div>
+        ${isNew ? '' : '<button class="btn btn-danger" id="ch-del">Delete</button><div style="height:8px"></div>'}
+        <button class="btn btn-ghost" id="ch-close" style="width:100%">Close</button>
+      </div>
+    </div>`);
+
+  modal.querySelector('#ch-save').addEventListener('click', async () => {
+    const updated = {
+      ...c,
+      name: modal.querySelector('#ch-name').value.trim() || 'Unnamed',
+      role: modal.querySelector('#ch-role').value.trim(),
+      want: modal.querySelector('#ch-want').value.trim(),
+      need: modal.querySelector('#ch-need').value.trim(),
+      wound: modal.querySelector('#ch-wound').value.trim(),
+      notes: modal.querySelector('#ch-notes').value.trim(),
+    };
+    const next = isNew ? cast.concat([updated]) : cast.map((x) => (x.id === c.id ? updated : x));
+    await saveProject({ characters: next });
+    modal.remove();
+    render();
+  });
+  const del = modal.querySelector('#ch-del');
+  if (del) del.addEventListener('click', async () => {
+    if (!confirm('Delete this character?')) return;
+    await saveProject({ characters: cast.filter((x) => x.id !== c.id) });
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#ch-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('modal-root').appendChild(modal);
+}
+
+function openBeatNotesEditor(beatKey) {
+  const project = projectCache;
+  const beats = computeBeats(project);
+  const notes = project.beatNotes || {};
+  const target = beatKey ? beats.find((b) => b.key === beatKey) : beats[0];
+
+  const rows = beats.map((b) => `
+    <label for="bn-${b.key}">${escapeHtml(b.name)} <span class="muted" style="font-weight:400">&middot; ${b.kind === 'moment' ? `at ${fmt(b.startWords)}` : `${fmt(b.startWords)}–${fmt(b.endWords)}`}</span></label>
+    <textarea id="bn-${b.key}" placeholder="${escapeHtml(b.summary)}">${escapeHtml(notes[b.key] || '')}</textarea>
+  `).join('');
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Beats</div>
+        <h2>Your fifteen beats</h2>
+        <p class="prose muted">A sentence or two each. Then read them in order and check each one makes the next necessary.</p>
+        ${rows}
+        <div style="height:14px"></div>
+        <button class="btn btn-primary" id="bn-save">Save</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="bn-close" style="width:100%">Close</button>
+      </div>
+    </div>`);
+
+  modal.querySelector('#bn-save').addEventListener('click', async () => {
+    const next = {};
+    beats.forEach((b) => { next[b.key] = modal.querySelector(`#bn-${b.key}`).value.trim(); });
+    await saveProject({ beatNotes: next });
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#bn-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('modal-root').appendChild(modal);
+  if (target) {
+    const f = modal.querySelector(`#bn-${target.key}`);
+    if (f && beatKey) f.focus();
+  }
+}
+
+function openSceneEditor(sceneId) {
+  const project = projectCache;
+  const scenes = project.scenes || [];
+
+  if (sceneId) {
+    const s = scenes.find((x) => x.id === sceneId);
+    const beat = computeBeats(project).find((b) => b.key === s.beatKey);
+    const modal = el(`
+      <div class="modal-backdrop">
+        <div class="modal-card">
+          <div class="eyebrow">Scene ${s.index} &middot; ${escapeHtml(beat ? beat.name : '')}</div>
+          <h2>${escapeHtml(s.title || 'Untitled scene')}</h2>
+          <label for="sc-title">Title</label>
+          <input id="sc-title" type="text" value="${escapeHtml(s.title)}" placeholder="A few words you'll recognise" />
+          <label for="sc-pov">POV</label>
+          <input id="sc-pov" type="text" value="${escapeHtml(s.pov || '')}" />
+          <label for="sc-summary">What happens, and what changes</label>
+          <textarea id="sc-summary" style="min-height:120px">${escapeHtml(s.summary)}</textarea>
+          <div class="hint">One or two sentences. If "what changes" is hard to write, merge or cut this scene now while it costs a sentence.</div>
+          <div style="height:14px"></div>
+          <button class="btn btn-primary" id="sc-save">Save</button>
+          <div style="height:8px"></div>
+          <button class="btn" id="sc-toggle">${s.done ? 'Mark not drafted' : 'Mark drafted'}</button>
+          <div style="height:8px"></div>
+          <button class="btn btn-ghost" id="sc-close" style="width:100%">Close</button>
+        </div>
+      </div>`);
+
+    const put = async (patch) => {
+      await saveProject({ scenes: scenes.map((x) => (x.id === s.id ? { ...x, ...patch } : x)) });
+      modal.remove();
+      render();
+    };
+    modal.querySelector('#sc-save').addEventListener('click', () => put({
+      title: modal.querySelector('#sc-title').value.trim(),
+      pov: modal.querySelector('#sc-pov').value.trim(),
+      summary: modal.querySelector('#sc-summary').value.trim(),
+    }));
+    modal.querySelector('#sc-toggle').addEventListener('click', () => put({ done: !s.done }));
+    modal.querySelector('#sc-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    document.getElementById('modal-root').appendChild(modal);
+    return;
+  }
+
+  // No scene list yet: offer to build one.
+  const suggested = suggestedSceneCount(project.targetWords);
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Scene list</div>
+        <h2>Build your scene list</h2>
+        <p class="prose muted">Your ${fmt(project.targetWords)}-word target divides into scenes of roughly ${fmt(WORDS_PER_SCENE)} words, distributed across the beats by each beat's word budget. Moments get exactly one scene, because a moment is one scene by definition.</p>
+        <label for="sc-count">Number of scenes</label>
+        <input id="sc-count" type="number" inputmode="numeric" min="12" max="200" value="${suggested}" />
+        <div class="hint">A scene is about the size of a long vignette. That is deliberate: it is the unit you already know how to write.</div>
+        ${scenes.length ? '<div class="error">This replaces your existing scene list and its summaries.</div>' : ''}
+        <div style="height:14px"></div>
+        <button class="btn btn-primary" id="sc-gen">${scenes.length ? 'Rebuild the list' : 'Build the list'}</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="sc-cancel" style="width:100%">Cancel</button>
+      </div>
+    </div>`);
+
+  modal.querySelector('#sc-gen').addEventListener('click', async () => {
+    const n = clamp(Number(modal.querySelector('#sc-count').value) || suggested, 12, 200);
+    if (scenes.length && !confirm('Replace the existing scene list? Summaries will be lost.')) return;
+    await saveProject({ scenes: distributeScenes(computeBeats(project), n) });
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#sc-cancel').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('modal-root').appendChild(modal);
 }
 
 // ---------- Warm-up studio ----------
@@ -928,56 +1281,155 @@ function renderLearn() {
 
 // ---------- Map ----------
 
-function renderMap() {
+function renderStory() {
   const project = projectCache;
-  const entries = sortedEntries();
-  const state = programState(project, entries);
+  const state = programState(project, sortedEntries());
+  const bp = project.blueprint || {};
+  const cast = project.characters || [];
+  const notes = project.beatNotes || {};
+  const scenes = project.scenes || [];
+  const tpl = BEAT_TEMPLATES[project.templateId] || BEAT_TEMPLATES[DEFAULT_TEMPLATE_ID];
 
-  const rows = state.beats.map((b) => {
+  const field = (label, key, value) => `
+    <div class="artifact" data-text="${key}">
+      <div class="eyebrow">${escapeHtml(label)}</div>
+      <div class="artifact-body${value ? '' : ' is-empty'}">${value ? escapeHtml(value) : 'Not written yet. Tap to add.'}</div>
+    </div>`;
+
+  const premiseCard = `
+    <div class="card">
+      <div class="eyebrow">The idea</div>
+      <h2>${escapeHtml(project.title)}</h2>
+      ${field('Logline', 'logline', bp.logline)}
+      ${field('Premise', 'premise', bp.premise)}
+      ${field('Theme', 'theme', bp.theme)}
+      ${field('Notes', 'notes', bp.notes)}
+    </div>`;
+
+  const castCard = `
+    <div class="card">
+      <div class="eyebrow">Cast &middot; ${cast.length}</div>
+      ${cast.length ? cast.map((c) => `
+        <div class="lesson-row" data-char="${c.id}">
+          <div class="lesson-mark">${c.wound ? '●' : '○'}</div>
+          <div>
+            <div class="lesson-title">${escapeHtml(c.name)}${c.role ? ` <span class="muted" style="font-weight:400">&middot; ${escapeHtml(c.role)}</span>` : ''}</div>
+            <div class="lesson-sub">${c.want ? escapeHtml(c.want.slice(0, 90)) : 'No want yet'}</div>
+          </div>
+        </div>`).join('') : '<p class="prose muted">Nobody yet.</p>'}
+      <div style="height:12px"></div>
+      <button class="btn" id="add-char">Add a character</button>
+    </div>`;
+
+  const beatRows = state.beats.map((b) => {
     const mark = state.marks[b.key];
     const isCurrent = b.key === state.focus.key;
     const done = b.kind === 'moment' ? !!mark : state.total >= b.endWords;
-
     let dotClass = 'beat-dot';
     if (b.kind === 'moment') dotClass += ' moment';
     if (done) dotClass += ' done';
     else if (isCurrent) dotClass += ' current';
 
-    const range = b.kind === 'moment'
-      ? `at ${fmt(b.startWords)}`
-      : `${fmt(b.startWords)}&ndash;${fmt(b.endWords)}`;
-
+    const range = b.kind === 'moment' ? `at ${fmt(b.startWords)}` : `${fmt(b.startWords)}&ndash;${fmt(b.endWords)}`;
     let bar = '';
     if (b.kind === 'span') {
       const budget = b.endWords - b.startWords;
       const into = clamp(state.total - b.startWords, 0, budget * 2);
-      const pct = clamp((into / budget) * 100, 0, 100);
-      bar = `<div class="beat-bar"><div class="beat-bar-fill${into > budget ? ' over' : ''}" style="width:${pct.toFixed(1)}%"></div></div>`;
+      bar = `<div class="beat-bar"><div class="beat-bar-fill${into > budget ? ' over' : ''}" style="width:${clamp((into / budget) * 100, 0, 100).toFixed(1)}%"></div></div>`;
     }
-
+    const note = notes[b.key];
     return `
-      <div class="beat-row${isCurrent ? ' is-current' : ''}">
+      <div class="beat-row${isCurrent ? ' is-current' : ''}" data-beat="${b.key}">
         <div class="${dotClass}"></div>
         <div>
           <div class="beat-name"><span>${escapeHtml(b.name)}</span><span class="beat-range">${range}</span></div>
-          <div class="beat-summary">${escapeHtml(b.summary)}</div>
+          <div class="beat-summary">${note ? escapeHtml(note) : `<span class="muted" style="font-style:italic">${escapeHtml(b.summary)}</span>`}</div>
           ${bar}
         </div>
       </div>`;
   }).join('');
 
-  const tpl = BEAT_TEMPLATES[project.templateId] || BEAT_TEMPLATES[DEFAULT_TEMPLATE_ID];
+  const beatsCard = `
+    <div class="card">
+      <div class="eyebrow">${escapeHtml(tpl.name)} &middot; ${Object.values(notes).filter(Boolean).length}/15 filled in</div>
+      <h2>Your beats</h2>
+      <p class="prose muted">Diamonds are single scenes. Circles are stretches with a word budget. Tap any beat to write yours in.</p>
+      <div style="margin-top:6px">${beatRows}</div>
+    </div>`;
 
-  return el(`
-    <div>
+  let scenesCard;
+  if (!scenes.length) {
+    scenesCard = `
       <div class="card">
-        <div class="eyebrow">${escapeHtml(tpl.name)}</div>
-        <h2>Your beat map</h2>
-        <p class="prose muted">Diamonds are single scenes that land at a point. Circles are stretches with a word budget you can overrun.</p>
-        <div style="margin-top:6px">${rows}</div>
-      </div>
-    </div>
-  `);
+        <div class="eyebrow">Scene list</div>
+        <h2>Not built yet</h2>
+        <p class="prose muted">Your target divides into scenes of roughly ${fmt(WORDS_PER_SCENE)} words &mdash; about ${suggestedSceneCount(project.targetWords)} of them &mdash; distributed across the beats. Vignette-sized, on purpose.</p>
+        <div style="height:12px"></div>
+        <button class="btn btn-primary" id="build-scenes">Build the scene list</button>
+      </div>`;
+  } else {
+    const written = scenes.filter((s) => s.done).length;
+    const summarised = scenes.filter((s) => s.summary).length;
+    let lastBeat = null;
+    const rows = scenes.map((s) => {
+      const beat = state.beats.find((b) => b.key === s.beatKey);
+      const header = beat && beat.key !== lastBeat
+        ? `<div class="scene-beat">${escapeHtml(beat.name)}</div>` : '';
+      lastBeat = beat ? beat.key : lastBeat;
+      return `${header}
+        <div class="scene-row${s.done ? ' is-done' : ''}" data-scene="${s.id}">
+          <div class="scene-num">${s.index}</div>
+          <div>
+            <div class="scene-title">${escapeHtml(s.title || 'Untitled')}${s.pov ? ` <span class="muted" style="font-weight:400">&middot; ${escapeHtml(s.pov)}</span>` : ''}</div>
+            <div class="scene-summary">${s.summary ? escapeHtml(s.summary) : '<span style="font-style:italic">No summary yet</span>'}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    scenesCard = `
+      <div class="card">
+        <div class="eyebrow">Scene list &middot; ${summarised}/${scenes.length} summarised &middot; ${written} drafted</div>
+        <h2>${scenes.length} scenes</h2>
+        <div style="margin-top:8px">${rows}</div>
+        <div style="height:12px"></div>
+        <button class="btn btn-ghost" id="build-scenes" style="width:auto">Rebuild the list</button>
+      </div>`;
+  }
+
+  const phaseCard = state.inBlueprint
+    ? ''
+    : `<div class="card">
+         <div class="eyebrow">Phase</div>
+         <h2>Drafting</h2>
+         <p class="prose muted">${state.bpComplete ? 'Blueprint complete.' : `Blueprint is ${state.bpDone}/${BLUEPRINT_TASKS.length} done &mdash; you can go back to it any time without losing drafting progress.`}</p>
+         ${state.bpComplete ? '' : '<div style="height:12px"></div><button class="btn" id="back-to-bp">Back to the blueprint</button>'}
+       </div>`;
+
+  const wrap = el(`<div>${premiseCard}${castCard}${beatsCard}${scenesCard}${phaseCard}</div>`);
+
+  wrap.querySelectorAll('[data-text]').forEach((n) => {
+    n.addEventListener('click', () => openTextArtifact(n.dataset.text));
+  });
+  wrap.querySelectorAll('[data-char]').forEach((n) => {
+    n.addEventListener('click', () => openCastEditor(n.dataset.char));
+  });
+  wrap.querySelectorAll('[data-beat]').forEach((n) => {
+    n.addEventListener('click', () => openBeatNotesEditor(n.dataset.beat));
+  });
+  wrap.querySelectorAll('[data-scene]').forEach((n) => {
+    n.addEventListener('click', () => openSceneEditor(n.dataset.scene));
+  });
+  wrap.querySelector('#add-char').addEventListener('click', () => openCastEditor());
+  const build = wrap.querySelector('#build-scenes');
+  if (build) build.addEventListener('click', () => openSceneEditor());
+  const back = wrap.querySelector('#back-to-bp');
+  if (back) back.addEventListener('click', async () => {
+    await saveProject({ phase: 'blueprint' });
+    navigate('today');
+    render();
+  });
+
+  return wrap;
 }
 
 // ---------- Trends ----------
@@ -1123,6 +1575,10 @@ function openSettings() {
         <button class="btn btn-primary" id="st-save">Save project</button>
         <div style="height:18px"></div>` : ''}
 
+        <button class="btn" id="st-new">Start a new project</button>
+        <div class="hint">Wipes the current project and its logged sessions and takes you back through setup. Export a backup first if you want to keep this one. Your warm-up writing is never touched.</div>
+        <div style="height:18px"></div>
+
         <button class="btn" id="st-export">Export backup (JSON)</button>
         <div style="height:8px"></div>
         <button class="btn" id="st-import">Import backup</button>
@@ -1165,6 +1621,17 @@ function openSettings() {
       render();
     });
   }
+
+  modal.querySelector('#st-new').addEventListener('click', async () => {
+    if (!confirm('Delete this project and all its logged sessions, and start again from the blueprint? Warm-up writing is kept.')) return;
+    if (!confirm('Last check -- this cannot be undone.')) return;
+    await Cloud.bulkDeleteCloud(currentUser.uid, entriesCache);
+    await Cloud.deleteProjectCloud(currentUser.uid);
+    projectCache = null;
+    modal.remove();
+    navigate('today');
+    render();
+  });
 
   modal.querySelector('#st-export').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify({ project: projectCache, entries: entriesCache, warmups: warmupsCache }, null, 2)], { type: 'application/json' });

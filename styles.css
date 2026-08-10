@@ -391,6 +391,49 @@ textarea { resize: vertical; min-height: 74px; }
 .beat-bar-fill { height: 100%; background: var(--accent); }
 .beat-bar-fill.over { background: var(--warn); }
 
+/* --- Story bible ------------------------------------------------------- */
+
+.artifact {
+  border-left: 3px solid var(--border);
+  padding: 2px 0 2px 13px;
+  margin: 14px 0;
+  cursor: pointer;
+}
+.artifact:hover { border-left-color: var(--accent); }
+.artifact-body { font-size: 15px; line-height: 1.55; white-space: pre-wrap; margin-top: 3px; }
+.artifact-body.is-empty { color: var(--muted); font-style: italic; }
+
+.scene-beat {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 16px 0 4px;
+}
+.scene-row {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  align-items: start;
+}
+.scene-row:last-child { border-bottom: none; }
+.scene-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.scene-row.is-done .scene-num { color: var(--success); }
+.scene-row.is-done .scene-title { text-decoration: line-through; color: var(--muted); }
+.scene-title { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.scene-summary { font-size: 13px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+
 /* --- Trends ------------------------------------------------------------ */
 
 .chart { width: 100%; height: 190px; display: block; }

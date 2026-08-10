@@ -83,6 +83,10 @@ export function saveProjectCloud(uid, project) {
   return setDoc(doc(db, 'users', uid, 'novel', 'project'), project);
 }
 
+export function deleteProjectCloud(uid) {
+  return deleteDoc(doc(db, 'users', uid, 'novel', 'project'));
+}
+
 // --- Entries (one doc per logged writing session) ---
 
 export function subscribeEntries(uid, onChange, onError) {

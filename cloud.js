@@ -26,18 +26,16 @@ import {
   enableIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-// TODO: replace with the config from your new Firebase project
-// (Project settings -> Your apps -> Web app -> SDK setup and configuration).
 const firebaseConfig = {
-  apiKey: 'REPLACE_ME',
-  authDomain: 'REPLACE_ME.firebaseapp.com',
-  projectId: 'REPLACE_ME',
-  storageBucket: 'REPLACE_ME.firebasestorage.app',
-  messagingSenderId: 'REPLACE_ME',
-  appId: 'REPLACE_ME',
+  apiKey: 'AIzaSyAqlLrjUUIIahD1GZEL6KAUk3AdsiaQU2s',
+  authDomain: 'couch-to-novel.firebaseapp.com',
+  projectId: 'couch-to-novel',
+  storageBucket: 'couch-to-novel.firebasestorage.app',
+  messagingSenderId: '1012232826404',
+  appId: '1:1012232826404:web:ccaf29e8557402e02eb2b1',
 };
 
-export const isConfigured = firebaseConfig.apiKey !== 'REPLACE_ME';
+export const isConfigured = !firebaseConfig.apiKey.startsWith('REPLACE');
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

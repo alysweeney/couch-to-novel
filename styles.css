@@ -651,6 +651,11 @@ textarea { resize: vertical; min-height: 74px; }
   .view-today {
     grid-template-columns: minmax(0, 1fr) 330px;
     grid-template-areas: "main head" "main side";
+    /* The left column spans both rows, so without an explicit track size the
+       two rows split its height and the second rail card lands halfway down
+       the page instead of under the first. auto/1fr sizes row one to its own
+       content and lets the rest absorb the slack. */
+    grid-template-rows: auto 1fr;
     align-items: start;
   }
   .view-today .grp-side { position: sticky; top: 92px; }

@@ -778,3 +778,69 @@ textarea { resize: vertical; min-height: 74px; }
 .home-strip.is-external { background: color-mix(in srgb, var(--orange) 9%, var(--cream)); border-left-color: var(--orange); }
 .home-strip.is-external .home-label { color: var(--orange); }
 .home-strip.is-nowhere { background: transparent; border-left-color: var(--rule); }
+
+
+/* --- Two tiers on Today ------------------------------------------------- */
+/* The page holds two kinds of thing and used to render both as identical
+   cream cards, so five boxes read as five equally urgent jobs. Cards are for
+   work; panels are for information and sit ON the tone rather than on top of
+   it, which drops them out of the "to do" set entirely. */
+
+.panel {
+  background: transparent;
+  border: 1px solid rgba(253, 246, 233, 0.24);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: none;
+  color: var(--cream);
+}
+.panel .eyebrow { color: rgba(253, 246, 233, 0.6); }
+.panel h2,
+.panel .today-target,
+.panel .stat-value,
+.panel .check-label { color: var(--cream); }
+.panel .today-target small,
+.panel .stat-label,
+.panel .muted,
+.panel .hint { color: rgba(253, 246, 233, 0.66); }
+.panel .progress { background: rgba(253, 246, 233, 0.2); }
+.panel .progress-fill { background: var(--cream); }
+.panel .btn { border-color: rgba(253, 246, 233, 0.34); color: var(--cream); }
+.panel .btn:hover { border-color: var(--cream); background: rgba(253, 246, 233, 0.1); }
+.panel .check-mark { border-color: rgba(253, 246, 233, 0.4); }
+.panel .check-row.is-done .check-mark { background: var(--cream); border-color: var(--cream); color: var(--tone-deep); }
+.panel .check-row.is-done .check-label { color: rgba(253, 246, 233, 0.5); }
+.panel .check-row.is-current .check-mark { border-color: var(--cream); box-shadow: 0 0 0 3px rgba(253, 246, 233, 0.16); }
+@media (prefers-color-scheme: dark) {
+  .panel { border-color: var(--border); color: var(--text); }
+  .panel h2, .panel .today-target, .panel .stat-value, .panel .check-label { color: var(--heading); }
+}
+
+/* Sequence: the step you're on carries full weight, the ones behind you
+   recede, the ones ahead stay quiet. */
+.step { position: relative; }
+.step.is-current { box-shadow: var(--shadow-md); }
+.step.is-current::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 18px; bottom: 18px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--tone);
+}
+.step.is-done { opacity: 0.55; }
+.step.is-done:hover { opacity: 0.85; }
+.step-n {
+  display: inline-grid;
+  place-items: center;
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  background: var(--tone-wash);
+  color: var(--tone-deep);
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 7px;
+  vertical-align: 1px;
+}
+.step.is-current .step-n { background: var(--tone); color: var(--cream); }

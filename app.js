@@ -688,6 +688,12 @@ function renderToday() {
   const streak = currentStreak(entries);
   const focus = state.focus;
 
+  // Exactly one card is loud at a time. Writing and logging are one step --
+  // you can't tell the writing happened until the number lands.
+  const step = !todayEntry.warmedUp ? 1 : loggedToday === 0 ? 2 : 3;
+  const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
+  const primary = (n) => (n === step ? ' btn-primary' : '');
+
   let structural;
   if (state.inOnRamp) {
     structural = `<span class="pill">Warm-up week</span>`;
@@ -708,7 +714,7 @@ function renderToday() {
          <div style="margin-top:10px">${structural}</div>
          <div class="muted" style="font-size:13px; margin-top:8px">Drafting starts ${formatDateLong(addDays(project.startDate, state.onRampDays))} at about ${fmt(state.paceTarget)} words a day. Until then the only job is showing up.</div>
        </div>`
-    : `<div class="card">
+    : `<div class="panel">
          <div class="eyebrow">Day ${state.elapsedDays + 1} of ${state.totalDays} &middot; ${escapeHtml(project.title)}</div>
          <div class="today-target">${fmt(state.dailyTarget)} <small>words today</small></div>
          <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap">${pacePill(state)} ${structural}</div>
@@ -717,14 +723,14 @@ function renderToday() {
        </div>`;
 
   const warmupCard = `
-    <div class="card${todayEntry.warmedUp ? ' is-done' : ''}">
-      <div class="eyebrow">Warm-up &middot; ${state.warmup.minutes} min &middot; not the manuscript</div>
+    <div class="card ${stepCls(1)}">
+      <div class="eyebrow"><span class="step-n">1</span>Warm-up &middot; ${state.warmup.minutes} min &middot; not the manuscript</div>
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
       ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
       <div style="height:12px"></div>
       <div class="btn-row">
-        <button class="btn btn-primary" id="warmup-write">Write it here</button>
+        <button class="btn${primary(1)}" id="warmup-write">Write it here</button>
         <button class="btn" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Mark done'}</button>
       </div>
     </div>`;
@@ -756,8 +762,8 @@ function renderToday() {
       ? `scene ${nextScene.index} of ${scenes.length}${nextScene.summary ? ` &middot; ${escapeHtml(nextScene.summary.slice(0, 80))}` : ''}`
       : 'the only writing that counts toward your word target';
     mainCard = `
-      <div class="card">
-        <div class="eyebrow">${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
+      <div class="card ${stepCls(2)}">
+        <div class="eyebrow"><span class="step-n">2</span>${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
         ${t ? `
           <h2>${escapeHtml(t.label)}</h2>
           <div class="session-meta">Assignment ${state.taskNumber} of ${state.beatTasks.length} &middot; may take more than one session</div>
@@ -776,12 +782,12 @@ function renderToday() {
   }
 
   const scrivCard = scrivHandle
-    ? `<div class="card">
+    ? `<div class="card ${stepCls(2)}">
          <div class="eyebrow">Manuscript &middot; ${scrivStatusLine(project) || 'not synced yet'}</div>
          <h2>${project.scrivener ? `${fmt(project.scrivener.total)} words` : 'Sync to count'}</h2>
          <p class="prose muted" style="margin-bottom:12px">Counted straight from your Scrivener Draft folder. Front matter, notes and research are excluded.</p>
          <div class="btn-row">
-           <button class="btn btn-primary" id="scriv-sync">Sync now</button>
+           <button class="btn${primary(2)}" id="scriv-sync">Sync now</button>
            ${project.scrivener ? '<button class="btn" id="scriv-breakdown">Breakdown</button>' : ''}
          </div>
          <div class="error" id="scriv-error" hidden></div>
@@ -789,7 +795,7 @@ function renderToday() {
     : '';
 
   const logCard = `
-    <div class="card">
+    <div class="card ${stepCls(2)}">
       <div class="eyebrow">Log today${scrivHandle ? ' &middot; manual override' : ''}</div>
       <h2>${loggedToday ? `${fmt(loggedToday)} words logged` : 'Nothing logged yet'}</h2>
       <label for="log-words">Words written today</label>
@@ -798,12 +804,12 @@ function renderToday() {
       <label for="log-note">Note (optional)</label>
       <textarea id="log-note" placeholder="What happened in the story today?">${escapeHtml(todayEntry.note || '')}</textarea>
       <div style="height:14px"></div>
-      <button class="btn btn-primary" id="log-save">Save today</button>
+      <button class="btn${scrivHandle ? '' : primary(2)}" id="log-save">Save today</button>
     </div>`;
 
   const cooldownCard = `
-    <div class="card${todayEntry.cooledDown ? ' is-done' : ''}">
-      <div class="eyebrow">Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
+    <div class="card ${stepCls(3)}">
+      <div class="eyebrow"><span class="step-n">3</span>Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
@@ -816,7 +822,7 @@ function renderToday() {
   // old rail read as noise.
   const sessionDone = loggedToday > 0;
   const statsCard = `
-    <div class="card">
+    <div class="panel">
       <div class="eyebrow">This session</div>
       <div class="checklist">
         <div class="check-row${todayEntry.warmedUp ? ' is-done' : ''}">
@@ -830,7 +836,7 @@ function renderToday() {
         </div>
       </div>
     </div>
-    <div class="stats card">
+    <div class="stats panel">
       <div class="stat"><div class="stat-value">${streak}</div><div class="stat-label">Day streak</div></div>
       <div class="stat"><div class="stat-value">${fmt(averagePerDay(entries, 14))}</div><div class="stat-label">Avg / day</div></div>
       <div class="stat"><div class="stat-value">${fmt(state.remaining)}</div><div class="stat-label">Words to go</div></div>
@@ -1058,9 +1064,14 @@ function renderBlueprintSession(project, entries, state) {
   const task = state.bpTask;
   const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
+  // Which of the three steps you're on, so exactly one card is loud.
+  const bpSessionDone = !!todayEntry.sessionDone;
+  const step = !todayEntry.warmedUp ? 1 : !bpSessionDone ? 2 : 3;
+  const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
+  const primary = (n) => (n === step ? ' btn-primary' : '');
 
   const headerCard = `
-    <div class="card">
+    <div class="panel">
       <div class="eyebrow">Blueprint &middot; ${escapeHtml(project.title)}</div>
       <div class="today-target">${state.bpDone}<small> of ${BLUEPRINT_TASKS.length} done</small></div>
       <div class="progress"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>
@@ -1081,28 +1092,28 @@ function renderBlueprintSession(project, entries, state) {
     : '';
 
   const warmupCard = `
-    <div class="card${todayEntry.warmedUp ? ' is-done' : ''}">
-      <div class="eyebrow">Warm-up &middot; ${state.warmup.minutes} min</div>
+    <div class="card ${stepCls(1)}">
+      <div class="eyebrow"><span class="step-n">1</span>Warm-up &middot; ${state.warmup.minutes} min</div>
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
       ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
       <div style="height:12px"></div>
       <div class="btn-row">
-        <button class="btn btn-primary" id="warmup-write">Write it here</button>
+        <button class="btn${primary(1)}" id="warmup-write">Write it here</button>
         <button class="btn" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Mark done'}</button>
       </div>
     </div>`;
 
   const mainCard = task
-    ? `<div class="card">
-         <div class="eyebrow">Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length} &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
+    ? `<div class="card ${stepCls(2)}">
+         <div class="eyebrow"><span class="step-n">2</span>Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length} &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
          <h2>${escapeHtml(task.name)}</h2>
          <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
          ${homeStrip(`Story tab &rarr; ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}`, 'in this app &middot; exportable to Scrivener any time')}
          <div class="lesson-practice"><div class="eyebrow" style="margin-bottom:4px">Why</div>${escapeHtml(task.help)}</div>
          <div style="height:14px"></div>
          <div class="btn-row">
-           <button class="btn btn-primary" id="bp-open">Open your ${escapeHtml((ARTIFACT_LABEL[task.artifact] || '').toLowerCase())}</button>
+           <button class="btn${primary(2)}" id="bp-open">Open your ${escapeHtml((ARTIFACT_LABEL[task.artifact] || '').toLowerCase())}</button>
            <button class="btn" id="bp-done">Mark done</button>
          </div>
        </div>`
@@ -1113,8 +1124,8 @@ function renderBlueprintSession(project, entries, state) {
        </div>`;
 
   const cooldownCard = `
-    <div class="card${todayEntry.cooledDown ? ' is-done' : ''}">
-      <div class="eyebrow">Cool-down &middot; ${state.cooldown.minutes} min</div>
+    <div class="card ${stepCls(3)}">
+      <div class="eyebrow"><span class="step-n">3</span>Cool-down &middot; ${state.cooldown.minutes} min</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
@@ -1124,7 +1135,7 @@ function renderBlueprintSession(project, entries, state) {
 
   const bpMod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const weeksCard = `
-    <div class="card">
+    <div class="panel">
       <div class="eyebrow">This session</div>
       <div class="checklist">
         <div class="check-row${todayEntry.warmedUp ? ' is-done' : ''}">
@@ -1174,6 +1185,7 @@ function renderBlueprintSession(project, entries, state) {
   if (done) {
     done.addEventListener('click', async () => {
       await saveProject({ blueprintMarks: { ...(project.blueprintMarks || {}), [task.id]: { date: todayStr() } } });
+      await patchTodayEntry({ sessionDone: true });
       render();
     });
   }

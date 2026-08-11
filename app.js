@@ -688,7 +688,10 @@ function renderToday() {
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.warmedUp ? '' : ' btn-primary'}" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Done warming up'}</button>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="warmup-write">Write it here</button>
+        <button class="btn" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Mark done'}</button>
+      </div>
     </div>`;
 
   let mainCard;
@@ -803,6 +806,7 @@ function renderToday() {
   const readBtn = wrap.querySelector('#read-lesson');
   if (readBtn) readBtn.addEventListener('click', () => openLesson(state.nextLesson));
 
+  wrap.querySelector('#warmup-write').addEventListener('click', () => openWarmupExercise(state.warmup));
   wrap.querySelector('#warmup-done').addEventListener('click', async () => {
     await patchTodayEntry({ warmedUp: !todayEntry.warmedUp });
     render();
@@ -951,7 +955,10 @@ function renderBlueprintSession(project, entries, state) {
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.warmedUp ? '' : ' btn-primary'}" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Done warming up'}</button>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="warmup-write">Write it here</button>
+        <button class="btn" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Mark done'}</button>
+      </div>
     </div>`;
 
   const mainCard = task
@@ -1008,6 +1015,7 @@ function renderBlueprintSession(project, entries, state) {
       <div class="grp-side">${weeksCard}</div>
     </div>`);
 
+  wrap.querySelector('#warmup-write').addEventListener('click', () => openWarmupExercise(state.warmup));
   wrap.querySelector('#warmup-done').addEventListener('click', async () => {
     await patchTodayEntry({ warmedUp: !todayEntry.warmedUp });
     render();
@@ -1287,6 +1295,82 @@ function openSceneEditor(sceneId) {
   document.getElementById('modal-root').appendChild(modal);
 }
 
+
+// Everything written in the blueprint lives on the project doc in Firestore.
+// This is the door out: one Markdown file you can drop into Scrivener's
+// Research folder, mail to yourself, or keep. Plain text on purpose -- it
+// should still be readable in ten years without this app.
+function blueprintMarkdown(project, warmups) {
+  const bp = project.blueprint || {};
+  const out = [];
+  const section = (title, body) => { if (body && body.trim()) out.push(`## ${title}\n\n${body.trim()}\n`); };
+
+  out.push(`# ${project.title || 'Untitled'}\n`);
+  out.push(`_${(GENRE_TARGETS.find((g) => g.id === project.genre) || {}).label || ''} · target ${fmt(project.targetWords)} words · exported ${formatDateLong(todayStr())}_\n`);
+
+  section('Logline', bp.logline);
+  section('Premise', bp.premise);
+  section('Theme', bp.theme);
+  section('Notes', bp.notes);
+
+  const cast = project.characters || [];
+  if (cast.length) {
+    out.push('## Cast\n');
+    cast.forEach((c) => {
+      out.push(`### ${c.name}${c.role ? ` — ${c.role}` : ''}\n`);
+      if (c.want) out.push(`**Wants:** ${c.want}\n`);
+      if (c.need) out.push(`**Needs:** ${c.need}\n`);
+      if (c.wound) out.push(`**Wound:** ${c.wound}\n`);
+      if (c.notes) out.push(`${c.notes}\n`);
+    });
+  }
+
+  const notes = project.beatNotes || {};
+  const beats = computeBeats(project);
+  if (Object.values(notes).some(Boolean)) {
+    out.push('## Beats\n');
+    beats.forEach((b) => {
+      const range = b.kind === 'moment' ? `at ${fmt(b.startWords)}` : `${fmt(b.startWords)}–${fmt(b.endWords)}`;
+      out.push(`### ${b.name} (${range})\n`);
+      out.push(`${notes[b.key] || `_${b.summary}_`}\n`);
+    });
+  }
+
+  const scenes = project.scenes || [];
+  if (scenes.length) {
+    out.push('## Scene list\n');
+    let lastBeat = null;
+    scenes.forEach((sc) => {
+      const beat = beats.find((b) => b.key === sc.beatKey);
+      if (beat && beat.key !== lastBeat) { out.push(`### ${beat.name}\n`); lastBeat = beat.key; }
+      out.push(`${sc.index}. **${sc.title || 'Untitled'}**${sc.pov ? ` (${sc.pov})` : ''}${sc.done ? ' ✓' : ''}`);
+      if (sc.summary) out.push(`   ${sc.summary}`);
+    });
+    out.push('');
+  }
+
+  if (warmups && warmups.length) {
+    out.push('## Warm-up writing\n');
+    warmups.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((w) => {
+      const ex = WARMUPS.find((x) => x.id === w.exerciseId);
+      out.push(`### ${ex ? ex.name : 'Warm-up'} — ${formatDate(w.date)}\n`);
+      out.push(`${w.text}\n`);
+    });
+  }
+
+  return out.join('\n');
+}
+
+function downloadBlueprint(includeWarmups) {
+  const md = blueprintMarkdown(projectCache, includeWarmups ? warmupsCache : null);
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(projectCache.title || 'blueprint').replace(/[^\w -]/g, '')} blueprint.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 // ---------- Warm-up studio ----------
 // A permanent home for the exercises, plus anywhere to actually write them.
 // Nothing here touches the manuscript: no word counts, no pacing, no beats.
@@ -1334,6 +1418,7 @@ function openWarmupExercise(exercise) {
     await Cloud.saveWarmupCloud(currentUser.uid, {
       id: uid(), date: todayStr(), exerciseId: exercise.id, text: text.value.trim(),
     });
+    await patchTodayEntry({ warmedUp: true });
     modal.remove();
     render();
   });
@@ -1713,7 +1798,20 @@ function renderStory() {
          ${state.bpComplete ? '' : '<div style="height:12px"></div><button class="btn" id="back-to-bp">Back to the blueprint</button>'}
        </div>`;
 
-  const wrap = el(`<div>${premiseCard}${castCard}${beatsCard}${scenesCard}${phaseCard}</div>`);
+  const exportCard = `
+    <div class="card">
+      <div class="eyebrow">Your writing</div>
+      <h2>Everything here lives in this app</h2>
+      <p class="prose muted">Your logline, premise, cast, beats and scene summaries are saved to your account and sync across devices &mdash; none of it is in Scrivener. Export a Markdown copy to drop into Scrivener's Research folder, or just to have it somewhere that outlives this app.</p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="ex-bp">Export blueprint</button>
+        <button class="btn" id="ex-bp-all">Include warm-ups</button>
+      </div>
+    </div>`;
+
+  const wrap = el(`<div>${premiseCard}${castCard}${beatsCard}${scenesCard}${exportCard}${phaseCard}</div>`);
+  wrap.querySelector('#ex-bp').addEventListener('click', () => downloadBlueprint(false));
+  wrap.querySelector('#ex-bp-all').addEventListener('click', () => downloadBlueprint(true));
 
   wrap.querySelectorAll('[data-text]').forEach((n) => {
     n.addEventListener('click', () => openTextArtifact(n.dataset.text));

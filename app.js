@@ -1063,10 +1063,6 @@ function openGenreConfirm() {
 
 function renderBlueprintSession(project, entries, state) {
   const todayEntry = entries.find((e) => e.date === todayStr()) || {};
-  const task = doneToday || state.bpTask;
-  const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
-  const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
-  // Which of the three steps you're on, so exactly one card is loud.
   const bpSessionDone = !!todayEntry.sessionDone;
   // Once today's session is marked done the card keeps showing THAT task with
   // an undo, rather than silently advancing to the next one and offering to
@@ -1074,6 +1070,10 @@ function renderBlueprintSession(project, entries, state) {
   const doneToday = bpSessionDone
     ? BLUEPRINT_TASKS.find((t) => t.id === todayEntry.sessionTaskId) || null
     : null;
+  const task = doneToday || state.bpTask;
+  const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
+  const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
+  // Which of the three steps you're on, so exactly one card is loud.
   const step = !todayEntry.warmedUp ? 1 : !bpSessionDone ? 2 : 3;
   const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
   // While the genre prompt is up it is the one thing to do, so the step

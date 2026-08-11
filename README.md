@@ -117,9 +117,18 @@ This scopes every user to only their own project doc and their own sessions.
 ./test/run.sh
 ```
 
-Renders every view in every meaningful state against a stub DOM and fails on any
-exception. It asserts almost nothing about output — its job is to make each
-function actually run.
+Two checks.
+
+**Render smoke** renders every view in every meaningful state against a stub DOM
+and fails on any exception. It asserts almost nothing about output — its job is
+to make each function actually run.
+
+**Phase audit** guards the rule that anything the programme tells you to do
+*today* must be doable at the stage you are at. "Pick something your protagonist
+owns" is a fine warm-up and an impossible one in module 1, when you have no
+protagonist. It checks instructions rather than explanations — a lesson may
+reason about drafting while you outline — and checks blueprint sessions in
+order, since a session may presume whatever an earlier one created.
 
 That distinction earned itself. A syntax check reported the app healthy while
 `renderBlueprintSession` threw a temporal-dead-zone error and Today rendered

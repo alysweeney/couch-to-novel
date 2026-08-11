@@ -166,7 +166,7 @@ function programState(project, entries) {
   const warmup = pickWarmup(elapsedDays, hasStory);
   // The drafting cool-downs all assume prose happened today, which it hasn't
   // during the blueprint.
-  const cooldown = inBlueprint ? pickBlueprintCooldown(elapsedDays) : pickCooldown(elapsedDays);
+  const cooldown = inBlueprint ? pickBlueprintCooldown(elapsedDays, hasStory) : pickCooldown(elapsedDays);
 
   // Blueprint phase. Soft gate: this is where new projects start and the app
   // keeps pointing here, but nothing prevents switching to drafting. A

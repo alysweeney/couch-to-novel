@@ -108,7 +108,7 @@ const COOLDOWNS = [
 const BLUEPRINT_COOLDOWNS = [
   { id: 'bcd-decided', minutes: 2, name: 'Name the decision',
     prompt: 'Write one sentence: what did you decide today that you had not decided yesterday? If the honest answer is nothing, write that instead -- some sessions are for gathering, and knowing which kind you had is worth more than pretending.' },
-  { id: 'bcd-question', minutes: 2, name: 'Tomorrow\'s question',
+  { id: 'bcd-question', needsStory: true, minutes: 2, name: 'Tomorrow\'s question',
     prompt: 'Write the question you want to be holding when you sit down next. Not a task -- a question. "Why does she stay?" restarts you faster than "work on character".' },
   { id: 'bcd-surprise', minutes: 2, name: 'What surprised you',
     prompt: 'Note the one thing that came out differently than you expected. Surprises are where the story is telling you something your plan had not accounted for, and they are easy to lose overnight.' },
@@ -117,16 +117,22 @@ const BLUEPRINT_COOLDOWNS = [
   { id: 'bcd-aboutness', minutes: 3, name: 'What it is about, today',
     prompt: 'One sentence on what your book is about, as of today. Keep every version. Watching this sentence change across thirty sessions tells you more about your story than any single answer will.' },
   { id: 'bcd-alive', minutes: 2, name: 'Mark what is alive',
-    prompt: 'Reread what you wrote today and underline the one line that has heat in it. That line is the book. The rest is scaffolding you can rebuild.' },
+    prompt: "Reread what you wrote in today's session -- notes, lists, fragments, whatever it was -- and underline the one line with heat in it. That line is the book. The rest is scaffolding you can rebuild." },
   { id: 'bcd-deleted', minutes: 2, name: 'The thing you almost wrote',
     prompt: 'Write down the idea you started to put in and then talked yourself out of. Those are usually discarded for being too strange or too personal, which are the two best reasons to keep something.' },
   { id: 'bcd-onestep', minutes: 1, name: 'Leave the door open',
     prompt: 'Write the first line of tomorrow\'s session now, however rough. The blueprint equivalent of stopping mid-sentence: arriving to something already started is far cheaper than arriving to a blank page.' },
 ];
 
-function pickBlueprintCooldown(dayIndex) {
-  const n = BLUEPRINT_COOLDOWNS.length;
-  return BLUEPRINT_COOLDOWNS[((dayIndex % n) + n) % n];
+// Same gate as the warm-ups: some of these are good exercises that simply
+// cannot be attempted before a cast exists.
+function blueprintCooldownPool(hasStory) {
+  return hasStory ? BLUEPRINT_COOLDOWNS : BLUEPRINT_COOLDOWNS.filter((c) => !c.needsStory);
+}
+
+function pickBlueprintCooldown(dayIndex, hasStory) {
+  const pool = blueprintCooldownPool(hasStory !== false);
+  return pool[((dayIndex % pool.length) + pool.length) % pool.length];
 }
 
 // ---------- On-ramp ----------

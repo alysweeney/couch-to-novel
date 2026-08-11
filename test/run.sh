@@ -19,5 +19,11 @@ trap 'rm -f "$TMP"' EXIT
 sed -e "/^import .* from '.*';$/d" app.js | sed -n '1,/^\/\/ ---------- Boot ----------$/p' > /tmp/c2n-app.js
 
 cat test/dom-stub.js beats.js curriculum.js blueprint.js lessons.js /tmp/c2n-app.js test/render-smoke.js > "$TMP"
-"$JSC" "$TMP"
+"$JSC" "$TMP" || exit 1
+
+echo
+AUDIT=$(mktemp /tmp/c2n-audit-XXXXXX.js)
+cat curriculum.js blueprint.js test/phase-audit.js > "$AUDIT"
+"$JSC" "$AUDIT"
+rm -f "$AUDIT"
 rm -f /tmp/c2n-app.js

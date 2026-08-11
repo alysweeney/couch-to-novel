@@ -143,4 +143,46 @@ check('it says you are behind', gap.calendarDelta < 0, true);
 check('the streak is honestly zero', currentStreak([{ date: addDays(today,-85), words: 5000 }]), 0);
 check('no projection without recent data', projectedFinish(P({}), [{date:addDays(today,-60),words:9000}]), null);
 
+
+print('-- the scene layer --');
+var full = distributeScenes(computeBeats(P({ targetWords: 110000 })), 44);
+function drafted(n) { return full.map(function (sc, i) { return i < n ? Object.assign({}, sc, { done:true }) : sc; }); }
+
+var none = programState(P({ targetWords:110000, scenes: full }), E(0));
+check('per-scene budget derives from the target', none.perScene, 2500);
+check('starts on scene 1', none.currentScene.index, 1);
+check('no signal before three are drafted', none.sceneSignal, 'null');
+
+// Eight scenes drafted, 24,000 words: 3,000 each against a 2,500 plan.
+var long = programState(P({ targetWords:110000, scenes: drafted(8) }), E(24000));
+check('average per drafted scene', long.avgPerScene, 3000);
+check('flags scenes running long', long.sceneSignal, 'long');
+check('projects the finished length from actual scene length', long.projectedLength, 132000);
+check('advances to the next undrafted scene', long.currentScene.index, 9);
+
+var short = programState(P({ targetWords:110000, scenes: drafted(10) }), E(18000));
+check('flags scenes running short', short.sceneSignal, 'short');
+var onLen = programState(P({ targetWords:110000, scenes: drafted(10) }), E(25000));
+check('says nothing when on length', onLen.sceneSignal, 'on');
+
+var done = programState(P({ targetWords:110000, scenes: drafted(44) }), E(110000));
+check('no current scene once all are drafted', done.currentScene, 'null');
+check('counts every scene drafted', done.drafted, 44);
+
+check('no scene list leaves the scene layer inert',
+      programState(P({ scenes: [] }), E(5000)).currentScene, 'null');
+check('and falls back to beat assignments',
+      !!programState(P({ scenes: [] }), E(5000)).currentTask, true);
+
+print('-- inserting and deleting keeps the list contiguous --');
+function renumber(list) { return list.map(function (x, i) { return Object.assign({}, x, { index: i + 1 }); }); }
+var inserted = renumber(full.slice(0, 5).concat([{ id:'new', beatKey: full[4].beatKey, title:'', summary:'', pov:'', done:false }], full.slice(5)));
+check('insert grows the list by one', inserted.length, 45);
+check('numbering stays 1..n after insert', inserted.every(function (x, i) { return x.index === i + 1; }), true);
+var deleted = renumber(full.filter(function (x) { return x.id !== full[10].id; }));
+check('delete shrinks the list by one', deleted.length, 43);
+check('numbering stays 1..n after delete', deleted.every(function (x, i) { return x.index === i + 1; }), true);
+check('deleting does not disturb other beats',
+      deleted.filter(function (x) { return x.beatKey === 'midpoint'; }).length, 1);
+
 print(fails === 0 ? '\nNO NEW FAILURES' : '\n' + fails + ' FINDINGS:\n  - ' + findings.join('\n  - '));

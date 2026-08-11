@@ -164,6 +164,29 @@ function programState(project, entries) {
   const inBlueprint = project.phase === 'blueprint';
   const hasStory = !inBlueprint || (project.characters || []).length > 0;
   const warmup = pickWarmup(elapsedDays, hasStory);
+
+  // --- Scene layer ---
+  // A scene is the unit you already think in, so progress is also counted in
+  // scenes rather than only in words. Projected length from actual scene
+  // length is the early bloat warning: eight scenes at 3,000 words against a
+  // 2,500 plan means a 132,000-word book, visible at 24,000 words rather than
+  // at 90,000.
+  const scenes = project.scenes || [];
+  const sceneCount = scenes.length;
+  const perScene = sceneCount ? Math.round(project.targetWords / sceneCount) : 0;
+  const drafted = scenes.filter((sc) => sc.done).length;
+  // Simply the next undrafted scene. An earlier version preferred a scene in
+  // the beat your word count put you in, which was mirroring the beat layer
+  // for no reason: scenes are written in order, and the word count cannot jump
+  // you forward past scenes you haven't written. That version skipped scene 1
+  // at zero words and jumped from 8 to 13 mid-draft.
+  const currentScene = scenes.find((sc) => !sc.done) || null;
+  const avgPerScene = drafted ? Math.round(total / drafted) : 0;
+  const projectedLength = drafted && sceneCount ? Math.round(avgPerScene * sceneCount) : 0;
+  // Only meaningful once a few scenes are in; two long scenes prove nothing.
+  const sceneSignal = drafted >= 3 && perScene
+    ? (avgPerScene > perScene * 1.15 ? 'long' : avgPerScene < perScene * 0.85 ? 'short' : 'on')
+    : null;
   // The drafting cool-downs all assume prose happened today, which it hasn't
   // during the blueprint.
   const cooldown = inBlueprint ? pickBlueprintCooldown(elapsedDays, hasStory) : pickCooldown(elapsedDays);
@@ -220,6 +243,14 @@ function programState(project, entries) {
     taskNumber,
     warmup,
     cooldown,
+    scenes,
+    sceneCount,
+    perScene,
+    drafted,
+    currentScene,
+    avgPerScene,
+    projectedLength,
+    sceneSignal,
     inBlueprint,
     genreConfirmDue,
     bpMarks,
@@ -700,6 +731,14 @@ function renderToday() {
   const rowCls = (n) => (n < step ? ' is-done' : n === step ? ' is-current' : '');
   const stepN = (n) => `<span class="step-n">${n < step ? '✓' : n}</span>`;
 
+  const sceneSignal = state.sceneSignal === 'long'
+    ? `<span class="pill pill-bad">scenes running ${fmt(state.avgPerScene)} against ${fmt(state.perScene)}</span>`
+    : state.sceneSignal === 'short'
+      ? `<span class="pill pill-warn">scenes running short at ${fmt(state.avgPerScene)}</span>`
+      : state.sceneSignal === 'on'
+        ? `<span class="pill pill-good">scenes on length</span>`
+        : '';
+
   let structural;
   if (state.inOnRamp) {
     structural = `<span class="pill">Warm-up week</span>`;
@@ -723,7 +762,7 @@ function renderToday() {
     : `<div class="panel">
          <div class="eyebrow">Day ${state.elapsedDays + 1} of ${state.totalDays} &middot; ${escapeHtml(project.title)}</div>
          <div class="today-target">${fmt(state.dailyTarget)} <small>words today</small></div>
-         <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap">${pacePill(state)} ${structural}</div>
+         <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap">${pacePill(state)} ${structural} ${sceneSignal}</div>
          <div class="progress"><div class="progress-fill" style="width:${(state.pctComplete * 100).toFixed(1)}%"></div></div>
          <div class="muted" style="font-size:13px">${fmt(state.total)} of ${fmt(project.targetWords)} words &middot; ${state.daysLeft} days left</div>
        </div>`;
@@ -767,6 +806,32 @@ function renderToday() {
     const scrivNote = nextScene
       ? `scene ${nextScene.index} of ${scenes.length}${nextScene.summary ? ` &middot; ${escapeHtml(nextScene.summary.slice(0, 80))}` : ''}`
       : 'the only writing that counts toward your word target';
+    const sc = state.currentScene;
+    if (sc) {
+      const beat = state.beats.find((b) => b.key === sc.beatKey);
+      mainCard = `
+        <div class="card ${stepCls(2)}">
+          <div class="eyebrow">${stepN(2)}Scene ${sc.index} of ${state.sceneCount} &middot; ${escapeHtml(beat ? beat.name : '')} &middot; about ${fmt(state.perScene)} words</div>
+          <h2>${escapeHtml(sc.title || `Scene ${sc.index}`)}</h2>
+          ${sc.summary
+            ? `<p class="beat-prompt">${escapeHtml(sc.summary)}</p>`
+            : `<p class="prose muted">No summary yet. Blueprint session 29 writes these &mdash; or open the scene and write one now, since knowing what changes before you start is most of the work.</p>`}
+          ${sc.pov ? `<div class="session-meta">POV: ${escapeHtml(sc.pov)}</div>` : ''}
+          ${homeStrip(scrivWhere, scrivNote, 'external')}
+          <div style="height:14px"></div>
+          <div class="btn-row">
+            <button class="btn" id="scene-open">Edit this scene</button>
+            <button class="btn" id="scene-done">Mark scene drafted</button>
+          </div>
+        </div>`;
+    } else if (state.sceneCount) {
+      mainCard = `
+        <div class="card ${stepCls(2)}">
+          <div class="eyebrow">${stepN(2)}All ${state.sceneCount} scenes drafted</div>
+          <h2>You have a draft</h2>
+          <p class="prose muted">Every scene on the list is marked done. Put it away for a month before you read it &mdash; you cannot see a draft you have just written.</p>
+        </div>`;
+    } else {
     mainCard = `
       <div class="card ${stepCls(2)}">
         <div class="eyebrow">${stepN(2)}${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
@@ -785,6 +850,7 @@ function renderToday() {
             : `<p class="prose muted" style="margin:0">Keep going. The word count moves you into the next beat.</p>`}
         `}
       </div>`;
+    }
   }
 
   const scrivCard = scrivHandle
@@ -849,7 +915,9 @@ function renderToday() {
     <div class="stats panel">
       <div class="stat"><div class="stat-value">${streak}</div><div class="stat-label">Day streak</div></div>
       <div class="stat"><div class="stat-value">${fmt(averagePerDay(entries, 14))}</div><div class="stat-label">Avg / day</div></div>
-      <div class="stat"><div class="stat-value">${fmt(state.remaining)}</div><div class="stat-label">Words to go</div></div>
+      ${state.sceneCount
+        ? `<div class="stat"><div class="stat-value">${state.drafted}/${state.sceneCount}</div><div class="stat-label">Scenes drafted</div></div>`
+        : `<div class="stat"><div class="stat-value">${fmt(state.remaining)}</div><div class="stat-label">Words to go</div></div>`}
     </div>`;
 
   const lessonCard = state.nextLesson
@@ -911,6 +979,18 @@ function renderToday() {
       const marks = { ...(project.beatMarks || {}) };
       marks[focus.key] = { words: state.total, date: todayStr() };
       await saveProject({ beatMarks: marks });
+      render();
+    });
+  }
+
+  const sceneOpen = wrap.querySelector('#scene-open');
+  if (sceneOpen) sceneOpen.addEventListener('click', () => openSceneEditor(state.currentScene.id));
+  const sceneDone = wrap.querySelector('#scene-done');
+  if (sceneDone) {
+    sceneDone.addEventListener('click', async () => {
+      await saveProject({
+        scenes: (project.scenes || []).map((x) => (x.id === state.currentScene.id ? { ...x, done: true } : x)),
+      });
       render();
     });
   }
@@ -1498,6 +1578,11 @@ function openSceneEditor(sceneId, task) {
           <div style="height:8px"></div>
           <button class="btn" id="sc-toggle">${s.done ? 'Mark not drafted' : 'Mark drafted'}</button>
           <div style="height:8px"></div>
+          <div class="btn-row">
+            <button class="btn" id="sc-insert">Add a scene after this</button>
+            <button class="btn btn-danger" id="sc-delete">Delete</button>
+          </div>
+          <div style="height:8px"></div>
           <button class="btn btn-ghost" id="sc-close" style="width:100%">Close</button>
         </div>
       </div>`);
@@ -1513,6 +1598,25 @@ function openSceneEditor(sceneId, task) {
       summary: modal.querySelector('#sc-summary').value.trim(),
     }));
     modal.querySelector('#sc-toggle').addEventListener('click', () => put({ done: !s.done }));
+
+    // Renumber after any structural change, so scene numbers always read 1..n
+    // and match what the drafting card says.
+    const renumber = (list) => list.map((x, i) => ({ ...x, index: i + 1 }));
+
+    modal.querySelector('#sc-insert').addEventListener('click', async () => {
+      const at = scenes.findIndex((x) => x.id === s.id);
+      const fresh = { id: `sc-${s.beatKey}-${uid()}`, beatKey: s.beatKey, title: '', summary: '', pov: '', done: false };
+      await saveProject({ scenes: renumber(scenes.slice(0, at + 1).concat([fresh], scenes.slice(at + 1))) });
+      modal.remove();
+      render();
+    });
+
+    modal.querySelector('#sc-delete').addEventListener('click', async () => {
+      if (!confirm(`Delete scene ${s.index}${s.title ? ` (${s.title})` : ''}? Its summary goes with it.`)) return;
+      await saveProject({ scenes: renumber(scenes.filter((x) => x.id !== s.id)) });
+      modal.remove();
+      render();
+    });
     modal.querySelector('#sc-close').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     document.getElementById('modal-root').appendChild(modal);
@@ -2107,10 +2211,15 @@ function renderStory() {
         </div>`;
     }).join('');
 
+    const projLine = state.projectedLength
+      ? `Your drafted scenes average ${fmt(state.avgPerScene)} words against a ${fmt(state.perScene)} plan, which puts the book at about <strong>${fmt(state.projectedLength)}</strong> against your ${fmt(project.targetWords)} target.`
+      : `Each scene is budgeted at about ${fmt(state.perScene)} words. Once three are drafted this will project your finished length from how long they actually run.`;
+
     scenesCard = `
       <div class="card">
         <div class="eyebrow">Scene list &middot; ${summarised}/${scenes.length} summarised &middot; ${written} drafted</div>
         <h2>${scenes.length} scenes</h2>
+        <p class="prose muted">${projLine}</p>
         <div style="margin-top:8px">${rows}</div>
         <div style="height:12px"></div>
         <button class="btn btn-ghost" id="build-scenes" style="width:auto">Rebuild the list</button>

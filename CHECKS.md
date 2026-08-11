@@ -85,6 +85,13 @@ an assertion testing two vague things at once (`drift changed OR drift is
 zero`). It flagged correct behaviour. A check that can't say precisely what it
 expects can't tell you what broke.
 
+**2026-08-11 — Don't mirror a pattern where it doesn't apply.** The scene layer
+originally picked "the next undrafted scene in the beat your word count puts you
+in", copying the beat layer's logic. Scenes are written in order, so the word
+count cannot legitimately jump you forward past scenes you haven't written. It
+skipped scene 1 at zero words and jumped 8 → 13 mid-draft. The correct rule was
+simpler than the one being imitated.
+
 ## Retired
 
 *(nothing yet — when a check stops applying, move it here with the date and the

@@ -399,8 +399,13 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
   btn.addEventListener('click', () => navigate(btn.dataset.route));
 });
 
+// One deep tone per tab, set on <body> so every component reads a single
+// --tone variable rather than each knowing which tab it is on.
+const ROUTE_TONE = { today: 'today', learn: 'learn', studio: 'studio', story: 'story', map: 'story', trends: 'trends' };
+
 function syncNav() {
   const route = getRoute();
+  document.body.dataset.tone = ROUTE_TONE[route] || 'today';
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.route === route);
   });
@@ -716,7 +721,25 @@ function renderToday() {
       <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
     </div>`;
 
+  // The rail answers "what's left of today", not "where am I in the
+  // programme" -- that lives in Learn, and repeating it here is what made the
+  // old rail read as noise.
+  const sessionDone = loggedToday > 0;
   const statsCard = `
+    <div class="card">
+      <div class="eyebrow">This session</div>
+      <div class="checklist">
+        <div class="check-row${todayEntry.warmedUp ? ' is-done' : ''}">
+          <div class="check-mark">✓</div><div class="check-label">Warm-up</div>
+        </div>
+        <div class="check-row${sessionDone ? ' is-done' : ' is-current'}">
+          <div class="check-mark">✓</div><div class="check-label">${sessionDone ? `${fmt(loggedToday)} words` : `${fmt(state.dailyTarget)} words`}</div>
+        </div>
+        <div class="check-row${todayEntry.cooledDown ? ' is-done' : ''}">
+          <div class="check-mark">✓</div><div class="check-label">Cool-down</div>
+        </div>
+      </div>
+    </div>
     <div class="stats card">
       <div class="stat"><div class="stat-value">${streak}</div><div class="stat-label">Day streak</div></div>
       <div class="stat"><div class="stat-value">${fmt(averagePerDay(entries, 14))}</div><div class="stat-label">Avg / day</div></div>
@@ -922,20 +945,22 @@ function renderBlueprintSession(project, entries, state) {
       <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
     </div>`;
 
+  const bpMod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const weeksCard = `
     <div class="card">
-      <div class="eyebrow">The two modules</div>
-      ${BLUEPRINT_MODULES.map((m) => {
-        const ts = blueprintTasksForModule(m.id);
-        const done = ts.filter((t) => state.bpMarks[t.id]).length;
-        return `<div class="lesson-row" data-gotolearn="1">
-          <div class="lesson-mark">${done === ts.length ? '✓' : done ? '◐' : '○'}</div>
-          <div>
-            <div class="lesson-title">Module ${m.id}: ${escapeHtml(m.name)}</div>
-            <div class="lesson-sub">${done}/${ts.length} sessions &middot; ${escapeHtml(m.blurb)}</div>
-          </div>
-        </div>`;
-      }).join('')}
+      <div class="eyebrow">This session</div>
+      <div class="checklist">
+        <div class="check-row${todayEntry.warmedUp ? ' is-done' : ''}">
+          <div class="check-mark">✓</div><div class="check-label">Warm-up</div>
+        </div>
+        <div class="check-row${task ? ' is-current' : ' is-done'}">
+          <div class="check-mark">✓</div><div class="check-label">${task ? `Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length}` : 'Blueprint complete'}</div>
+        </div>
+        <div class="check-row${todayEntry.cooledDown ? ' is-done' : ''}">
+          <div class="check-mark">✓</div><div class="check-label">Cool-down</div>
+        </div>
+      </div>
+      ${bpMod ? `<div class="hint" style="margin-top:12px">Module ${bpMod.id} &middot; ${escapeHtml(bpMod.name)}</div>` : ''}
       <div style="height:12px"></div>
       <button class="btn" id="see-all-sessions">See all ${BLUEPRINT_TASKS.length} sessions</button>
     </div>`;
@@ -960,9 +985,6 @@ function renderBlueprintSession(project, entries, state) {
     await startDrafting();
   });
 
-  wrap.querySelectorAll('[data-gotolearn]').forEach((n) => {
-    n.addEventListener('click', () => navigate('learn'));
-  });
   wrap.querySelector('#see-all-sessions').addEventListener('click', () => navigate('learn'));
 
   const open = wrap.querySelector('#bp-open');
@@ -1412,47 +1434,51 @@ function openLesson(lesson) {
   modal.querySelector('.modal-card').scrollTop = 0;
 }
 
+// Which accordion panels are open. Ephemeral by design: on load the module
+// you're actually in opens and the rest stay shut, which is the point of the
+// accordion -- you should see the shape of the course, not all 85 items.
+const openPanels = new Set();
+let panelsPrimed = false;
+
+function togglePanel(id) {
+  if (openPanels.has(id)) openPanels.delete(id);
+  else openPanels.add(id);
+}
+
+function accordion(id, label, title, blurb, count, rowsHtml) {
+  const open = openPanels.has(id);
+  return `
+    <div class="acc ${open ? 'is-open' : 'is-closed'}">
+      <button class="acc-head" data-panel="${id}">
+        <div>
+          <div class="acc-label">${escapeHtml(label)}</div>
+          <div class="acc-title">${escapeHtml(title)}</div>
+          ${blurb ? `<div class="acc-blurb">${escapeHtml(blurb)}</div>` : ''}
+        </div>
+        <div class="acc-count">${escapeHtml(count)}</div>
+        <div class="acc-chev">▶</div>
+      </button>
+      <div class="acc-body">${rowsHtml}</div>
+    </div>`;
+}
+
 function renderLearn() {
   const project = projectCache;
   const state = programState(project, sortedEntries());
   const unlockedIds = new Set(state.unlockedLessons.map((l) => l.id));
 
-  const modules = LESSON_MODULES.map((mod) => {
-    const lessons = lessonsForModule(mod.id, project.genre);
-    if (!lessons.length) return '';
+  // Open the module you're in the first time this renders, then leave it alone.
+  if (!panelsPrimed) {
+    panelsPrimed = true;
+    if (state.bpTask) openPanels.add('bp-' + state.bpTask.module);
+    else if (state.nextLesson) openPanels.add('ls-' + state.nextLesson.module);
+  }
 
-    const items = lessons.map((l) => {
-      const unlocked = unlockedIds.has(l.id);
-      const read = !!state.lessonMarks[l.id];
-      const beat = l.beat ? state.beats.find((b) => b.key === l.beat) : null;
-      const sub = unlocked
-        ? `${l.minutes} min${read ? ' &middot; read' : ''}`
-        : `Unlocks at ${fmt(beat ? beat.startWords : 0)} words`;
-      return `
-        <div class="lesson-row${unlocked ? '' : ' is-locked'}${read ? ' is-read' : ''}" data-id="${l.id}">
-          <div class="lesson-mark">${unlocked ? (read ? '✓' : '●') : '🔒'}</div>
-          <div>
-            <div class="lesson-title">${escapeHtml(l.title)}</div>
-            <div class="lesson-sub">${sub}</div>
-          </div>
-        </div>`;
-    }).join('');
+  const bpDone = BLUEPRINT_TASKS.filter((t) => state.bpMarks[t.id]).length;
 
-    const done = lessons.filter((l) => state.lessonMarks[l.id]).length;
-    return `
-      <div class="card">
-        <div class="eyebrow">${escapeHtml(mod.name)} &middot; ${done}/${lessons.length} read</div>
-        <p class="prose muted" style="margin-bottom:10px">${escapeHtml(mod.blurb)}</p>
-        ${items}
-      </div>`;
-  }).join('');
-
-  // The blueprint sessions are part of the course and belong here too, not
-  // only on whichever one happens to be today's.
-  const bpDoneCount = BLUEPRINT_TASKS.filter((t) => state.bpMarks[t.id]).length;
-  const bpModules = BLUEPRINT_MODULES.map((m) => {
+  const bpPanels = BLUEPRINT_MODULES.map((m) => {
     const ts = blueprintTasksForModule(m.id);
-    const doneN = ts.filter((t) => state.bpMarks[t.id]).length;
+    const done = ts.filter((t) => state.bpMarks[t.id]).length;
     const rows = ts.map((t) => {
       const isDone = !!state.bpMarks[t.id];
       const isNext = state.bpTask && state.bpTask.id === t.id;
@@ -1465,46 +1491,61 @@ function renderLearn() {
           </div>
         </div>`;
     }).join('');
-    return `
-      <div class="card">
-        <div class="eyebrow">Blueprint module ${m.id} &middot; ${doneN}/${ts.length} done</div>
-        <h2>${escapeHtml(m.name)}</h2>
-        <p class="prose muted" style="margin-bottom:10px">${escapeHtml(m.blurb)}</p>
-        ${rows}
-      </div>`;
+    return accordion('bp-' + m.id, `Module ${m.id}`, m.name, m.blurb, `${done}/${ts.length}`, rows);
   }).join('');
 
-  const bpHeader = `
-    <div class="card">
-      <div class="eyebrow">Before the draft</div>
-      <h2>Blueprint &middot; ${bpDoneCount} of ${BLUEPRINT_TASKS.length} done</h2>
-      <p class="prose muted" style="margin:0">Thirty sessions that turn an idea into a scene list. Unlike the lessons below, these are not gated &mdash; work through them in order, or jump to whichever one you need.</p>
-    </div>`;
+  const lsPanels = LESSON_MODULES.map((mod) => {
+    const lessons = lessonsForModule(mod.id, project.genre);
+    if (!lessons.length) return '';
+    const readN = lessons.filter((l) => state.lessonMarks[l.id]).length;
+    const openN = lessons.filter((l) => unlockedIds.has(l.id)).length;
+
+    const rows = lessons.map((l) => {
+      const unlocked = unlockedIds.has(l.id);
+      const read = !!state.lessonMarks[l.id];
+      const beat = l.beat ? state.beats.find((b) => b.key === l.beat) : null;
+      const sub = unlocked
+        ? `${l.minutes} min${read ? ' &middot; read' : ''}`
+        : `Unlocks at ${fmt(beat ? beat.startWords : 0)} words`;
+      return `
+        <div class="lesson-row${unlocked ? '' : ' is-locked'}${read ? ' is-read' : ''}" data-lesson="${l.id}">
+          <div class="lesson-mark">${unlocked ? (read ? '✓' : '●') : '🔒'}</div>
+          <div>
+            <div class="lesson-title">${escapeHtml(l.title)}</div>
+            <div class="lesson-sub">${sub}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    return accordion('ls-' + mod.id, `${lessons.length} lessons`, mod.name, mod.blurb, `${readN}/${lessons.length}`, rows);
+  }).join('');
 
   const wrap = el(`
     <div>
-      ${bpHeader}
-      ${bpModules}
       <div class="card">
         <div class="eyebrow">The course</div>
-        <h2>${state.unlockedLessons.length} of ${state.availableLessons.length} unlocked</h2>
-        <p class="prose muted" style="margin:0">Craft lessons unlock as your manuscript reaches each beat, so one arrives when you're about to need it rather than all at once.</p>
+        <h2>Blueprint ${bpDone} of ${BLUEPRINT_TASKS.length} &middot; Craft ${state.unlockedLessons.length} of ${state.availableLessons.length} unlocked</h2>
+        <div class="progress"><div class="progress-fill" style="width:${((bpDone / BLUEPRINT_TASKS.length) * 100).toFixed(1)}%"></div></div>
+        <p class="prose muted" style="margin:8px 0 0">Blueprint sessions are work you do in order. Craft lessons unlock as your manuscript reaches each beat, so one arrives when you're about to need it rather than all at once.</p>
       </div>
-      ${modules}
+
+      <div class="section-rule">Before the draft</div>
+      ${bpPanels}
+
+      <div class="section-rule">While you draft</div>
+      ${lsPanels}
     </div>
   `);
 
-  wrap.querySelectorAll('[data-bp]').forEach((row) => {
-    row.addEventListener('click', () => {
-      openBlueprintTask(BLUEPRINT_TASKS.find((t) => t.id === row.dataset.bp));
-    });
+  wrap.querySelectorAll('[data-panel]').forEach((head) => {
+    head.addEventListener('click', () => { togglePanel(head.dataset.panel); render(); });
   });
-
-  wrap.querySelectorAll('.lesson-row').forEach((row) => {
+  wrap.querySelectorAll('[data-bp]').forEach((row) => {
+    row.addEventListener('click', () => openBlueprintTask(BLUEPRINT_TASKS.find((t) => t.id === row.dataset.bp)));
+  });
+  wrap.querySelectorAll('[data-lesson]').forEach((row) => {
     if (row.classList.contains('is-locked')) return;
-    row.addEventListener('click', () => {
-      openLesson(LESSONS.find((l) => l.id === row.dataset.id));
-    });
+    row.addEventListener('click', () => openLesson(LESSONS.find((l) => l.id === row.dataset.lesson)));
   });
 
   return wrap;

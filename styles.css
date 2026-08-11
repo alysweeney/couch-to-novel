@@ -1,51 +1,103 @@
+/* Palette
+   ------------------------------------------------------------------
+   Five deep tones, one per tab, used as the PAGE background with cream
+   cards floating on top. The rail stays darkest-ink everywhere so it
+   reads as the frame rather than another room.
+
+   Every tone carries a four-step scale derived from one base hex, so the
+   family can't drift out of harmony and state is encoded by depth rather
+   than by switching hue: deep = active/selected, base = the page,
+   tint = inactive/waiting, wash = fills and tracks.
+
+   Text pairing is fixed and never needs deciding:
+     deep + base  ->  cream text
+     tint + wash  ->  ink text
+
+   Accents each have exactly one job. Orange is the single primary action
+   on a screen -- if two things are orange, one of them is wrong. There is
+   deliberately no green: "done" is teal, which is also the colour of the
+   work, so completion and the work share an identity. */
+
 :root {
-  /* Cream page, white cards, deep teal furniture, orange reserved almost
-     entirely for the one action you are meant to take. The restraint is what
-     reads as expensive: three colours, used consistently, and a lot of space. */
-  --bg: #f6eddb;
-  --surface: #fffdf8;
-  --text: #2a3f44;
-  --heading: #22484f;
-  --muted: #71858a;
-  --border: #e0d5bf;
-  --rule: #d7e2e3;
-  --accent: #d9552a;
-  --accent-2: #38635c;
-  --teal-deep: #38635c;
-  --teal-ink: #22484f;
-  --accent-text: #fffdf8;
-  --danger: #b03a1c;
-  --success: #4f7a5c;
-  --warn: #b7791f;
+  --cream: #fdf6e9;
+  --surface: #fffaf0;
+  --ink: #1d3138;
+  --ink-soft: #4a616a;
+
+  --teal:  #33605a;
+  --slate: #456a80;
+  --plum:  #6f5878;
+  --rose:  #8a4a56;
+  --deepink: #243c45;
+  --orange: #d9552a;
+
+  /* Active tone: set per route on <body>, so components read one variable
+     instead of every component knowing which tab it is on. */
+  --tone: var(--teal);
+  --tone-deep: color-mix(in srgb, var(--tone) 74%, #000);
+  --tone-tint: color-mix(in srgb, var(--tone) 32%, var(--cream));
+  --tone-wash: color-mix(in srgb, var(--tone) 12%, var(--cream));
+
+  --rail: #16292f;
+
+  --bg: var(--tone);
+  --text: var(--ink);
+  --heading: var(--ink);
+  --muted: #5d7079;
+  --border: #e2d6bf;
+  --rule: #ded2ba;
+  --accent: var(--orange);
+  --accent-2: var(--tone);
+  --accent-text: #fffaf0;
+  --danger: var(--rose);
+  --success: var(--tone);
+  --warn: var(--rose);
+
   --radius: 14px;
-  --shadow-sm: 0 1px 2px rgba(34, 72, 79, 0.05), 0 1px 1px rgba(34, 72, 79, 0.03);
-  --shadow-md: 0 10px 28px -12px rgba(34, 72, 79, 0.22), 0 2px 8px -4px rgba(34, 72, 79, 0.1);
+  --shadow-sm: 0 1px 2px rgba(20, 40, 46, 0.06);
+  --shadow-md: 0 14px 34px -14px rgba(12, 28, 33, 0.45), 0 3px 10px -4px rgba(12, 28, 33, 0.2);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
   --font-body: 'Mulish', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Type scale. The old one ran 24 / 16 / 13, too compressed to lead the
+     eye anywhere. */
+  --t-page: 34px;
+  --t-card: 24px;
+  --t-body: 16px;
+  --t-meta: 12.5px;
+  --t-label: 11px;
 }
+
+body[data-tone="today"]    { --tone: var(--teal); }
+body[data-tone="learn"]    { --tone: var(--slate); }
+body[data-tone="studio"]   { --tone: var(--plum); }
+body[data-tone="story"]    { --tone: var(--rose); }
+body[data-tone="trends"]   { --tone: var(--deepink); }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #16262a;
-    --surface: #1e3338;
-    --text: #eae2d2;
-    --heading: #f2ece0;
-    --muted: #97a9ad;
-    --border: #2f4a50;
-    --rule: #2f4a50;
+    --cream: #1b2b30;
+    --surface: #1f3238;
+    --ink: #f0e8d8;
+    --ink-soft: #b9c8cc;
+    --rail: #0e1a1e;
+    --bg: #121e22;
+    --text: var(--ink);
+    --heading: #f6efe1;
+    --muted: #93a7ac;
+    --border: #2e474e;
+    --rule: #2e474e;
     --accent: #ef7448;
-    --accent-2: #7fb0a5;
-    --teal-deep: #14252a;
-    --teal-ink: #f2ece0;
-    --accent-text: #16262a;
-    --danger: #ef7a5c;
-    --success: #86b394;
-    --warn: #d9a94f;
+    --accent-text: #121e22;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 10px 26px -10px rgba(0, 0, 0, 0.6), 0 2px 8px -2px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 14px 30px -12px rgba(0, 0, 0, 0.65);
   }
+  /* Deep-on-dark turns to mud, so the tone becomes an edge and a rule
+     rather than a field. Same wayfinding, no sludge. */
+  body { background: var(--bg); }
+  main > div > .card, main > .card { border-left: 4px solid var(--tone); }
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -74,11 +126,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(12px + var(--safe-top)) 18px 12px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  padding: calc(16px + var(--safe-top)) 18px 14px;
+  background: var(--tone);
+  border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -86,11 +136,12 @@ body {
 
 .topbar h1 {
   font-family: var(--font-display);
-  font-size: 23px;
+  font-size: var(--t-page);
+  line-height: 1.1;
   margin: 0;
   font-weight: 500;
-  letter-spacing: 0;
-  color: var(--heading);
+  letter-spacing: -0.01em;
+  color: var(--cream);
 }
 
 .icon-btn {
@@ -100,10 +151,11 @@ body {
   cursor: pointer;
   padding: 6px;
   border-radius: 10px;
-  color: var(--text);
+  color: var(--cream);
   font-family: inherit;
+  opacity: 0.85;
 }
-.icon-btn:active { background: var(--border); }
+.icon-btn:hover { opacity: 1; }
 
 main {
   flex: 1;
@@ -119,10 +171,8 @@ main {
   left: 0;
   right: 0;
   display: flex;
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-top: 1px solid var(--border);
+  background: var(--rail);
+  border-top: none;
   padding-bottom: var(--safe-bottom);
   z-index: 10;
 }
@@ -137,12 +187,12 @@ main {
   align-items: center;
   gap: 3px;
   font-size: 11px;
-  color: var(--muted);
+  color: rgba(253, 246, 233, 0.6);
   cursor: pointer;
   font-family: inherit;
 }
-.nav-btn .nav-icon { font-size: 20px; filter: grayscale(1); opacity: 0.65; }
-.nav-btn.active { color: var(--accent); font-weight: 600; }
+.nav-btn .nav-icon { font-size: 20px; filter: grayscale(1) brightness(2.4); opacity: 0.7; }
+.nav-btn.active { color: var(--cream); font-weight: 700; }
 .nav-btn.active .nav-icon { filter: none; opacity: 1; }
 
 /* --- Building blocks --------------------------------------------------- */
@@ -158,8 +208,8 @@ main {
 
 .card h2 {
   font-family: var(--font-display);
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: var(--t-card);
+  line-height: 1.22;
   margin: 0 0 10px;
   font-weight: 500;
   letter-spacing: -0.005em;
@@ -167,7 +217,7 @@ main {
 }
 
 .eyebrow {
-  font-size: 10.5px;
+  font-size: var(--t-label);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -176,7 +226,28 @@ main {
 }
 
 .muted { color: var(--muted); }
-.prose { font-size: 15px; line-height: 1.55; margin: 0 0 12px; }
+.prose { font-size: var(--t-body); line-height: 1.6; margin: 0 0 12px; }
+
+/* Section rules that sit on the deep page rather than inside a card. This is
+   what gives the layout its crisp floating structure -- but the rule stands:
+   anything read for more than a sentence lives on cream, never on the tone. */
+.section-rule {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 26px 2px 12px;
+  font-size: var(--t-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(253, 246, 233, 0.82);
+}
+.section-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(253, 246, 233, 0.28);
+}
 
 .btn {
   font-family: inherit;
@@ -206,9 +277,9 @@ input, select, textarea {
   font-size: 16px; /* 16px stops iOS zooming on focus */
   width: 100%;
   padding: 11px 13px;
-  border-radius: 11px;
+  border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--cream);
   color: var(--text);
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 1px; }
@@ -523,9 +594,7 @@ textarea { resize: vertical; min-height: 74px; }
     padding: calc(18px + var(--safe-top)) 14px 18px;
     border-top: none;
     border-right: none;
-    background: var(--teal-deep);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    background: var(--rail);
   }
 
   .nav-btn {
@@ -539,11 +608,11 @@ textarea { resize: vertical; min-height: 74px; }
     border-radius: 6px;
     font-size: 15px;
     font-weight: 600;
-    color: rgba(255, 253, 248, 0.72);
+    color: rgba(253, 246, 233, 0.66);
   }
   .nav-btn .nav-icon { font-size: 18px; filter: grayscale(1) brightness(2.2); opacity: 0.8; }
-  .nav-btn:hover { color: #fffdf8; }
-  .nav-btn.active { background: rgba(255, 253, 248, 0.12); color: #fffdf8; }
+  .nav-btn:hover { color: var(--cream); }
+  .nav-btn.active { background: var(--tone); color: var(--cream); }
   .nav-btn.active .nav-icon { filter: none; opacity: 1; }
 
   .topbar { padding-left: 34px; padding-right: 34px; }
@@ -592,3 +661,79 @@ textarea { resize: vertical; min-height: 74px; }
 
 .error { color: var(--danger); font-size: 14px; margin-top: 10px; }
 .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+
+
+/* --- Accordion (Learn) -------------------------------------------------- */
+/* State is depth on the tone scale, not a different colour: an expanded
+   module is the deep step with cream text, a collapsed one is the tint step
+   with ink text. Same hue throughout. */
+
+.acc {
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.acc-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px;
+  cursor: pointer;
+  background: var(--tone-tint);
+  color: var(--ink);
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.16s ease;
+}
+.acc-head:hover { background: color-mix(in srgb, var(--tone) 42%, var(--cream)); }
+
+.acc.is-open .acc-head { background: var(--tone-deep); color: var(--cream); }
+.acc.is-open .acc-label,
+.acc.is-open .acc-count { color: rgba(253, 246, 233, 0.75); }
+.acc.is-open .acc-blurb { color: rgba(253, 246, 233, 0.72); }
+
+.acc-label {
+  font-size: var(--t-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.acc-title { font-family: var(--font-display); font-size: 22px; font-weight: 500; line-height: 1.2; }
+.acc-blurb { font-size: var(--t-meta); color: var(--muted); margin-top: 4px; }
+.acc-count { font-size: 13px; font-weight: 700; white-space: nowrap; color: var(--muted); }
+.acc-chev { font-size: 13px; opacity: 0.7; transition: transform 0.16s ease; }
+.acc.is-open .acc-chev { transform: rotate(90deg); }
+
+.acc-body { background: var(--surface); padding: 6px 22px 12px; }
+.acc.is-closed .acc-body { display: none; }
+
+/* --- Session checklist (Today rail) ------------------------------------- */
+
+.checklist { display: grid; gap: 2px; }
+.check-row {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  font-size: 14.5px;
+}
+.check-mark {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--rule);
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 700;
+  color: transparent;
+}
+.check-row.is-done .check-mark { background: var(--tone); border-color: var(--tone); color: var(--cream); }
+.check-row.is-done .check-label { color: var(--muted); text-decoration: line-through; }
+.check-row.is-current .check-mark { border-color: var(--tone); box-shadow: 0 0 0 3px var(--tone-wash); }
+.check-row.is-current .check-label { font-weight: 700; }

@@ -657,6 +657,7 @@ function renderSetup() {
       templateId: DEFAULT_TEMPLATE_ID,
       phase: 'blueprint',
       blueprint: {},
+      sessionNotes: {},
       characters: [],
       beatNotes: {},
       scenes: [],
@@ -692,7 +693,7 @@ function renderToday() {
 
   // Exactly one card is loud at a time. Writing and logging are one step --
   // you can't tell the writing happened until the number lands.
-  const step = !todayEntry.warmedUp ? 1 : loggedToday === 0 ? 2 : 3;
+  const step = !todayEntry.warmedUp ? 1 : loggedToday === 0 ? 2 : !todayEntry.cooledDown ? 3 : 4;
   const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
   const primary = (n) => (n === step ? ' btn-primary' : '');
   const rowCls = (n) => (n < step ? ' is-done' : n === step ? ' is-current' : '');
@@ -1081,7 +1082,7 @@ function renderBlueprintSession(project, entries, state) {
   const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
   // Which of the three steps you're on, so exactly one card is loud.
-  const step = !todayEntry.warmedUp ? 1 : !bpSessionDone ? 2 : 3;
+  const step = !todayEntry.warmedUp ? 1 : !bpSessionDone ? 2 : !todayEntry.cooledDown ? 3 : 4;
   const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
   // While the genre prompt is up it is the one thing to do, so the step
   // buttons stand down rather than competing with it for the eye.
@@ -1296,12 +1297,20 @@ function openArtifactEditor(kind, task) {
 
 function openTextArtifact(field, task) {
   const bp = projectCache.blueprint || {};
+  const notes = projectCache.sessionNotes || {};
+  // The logline is genuinely one thing. Everything else exploratory belongs to
+  // the session that produced it, or later sessions overwrite earlier ones.
+  const perSession = !!task && field !== 'logline';
+  const key = perSession ? task.id : null;
+  const hadLegacy = perSession && notes[key] === undefined && !!(bp[field] || '').trim();
+  const initial = perSession ? (notes[key] !== undefined ? notes[key] : (bp[field] || '')) : (bp[field] || '');
+
   const modal = el(`
     <div class="modal-backdrop">
       <div class="modal-card is-writing">
         ${task ? taskPrompt(task) : ''}
-        <label for="ta-text">Your ${escapeHtml((ARTIFACT_LABEL[field] || field).toLowerCase())}</label>
-        <textarea id="ta-text">${escapeHtml(bp[field] || '')}</textarea>
+        <label for="ta-text">${perSession ? 'Your writing for this session' : `Your ${escapeHtml((ARTIFACT_LABEL[field] || field).toLowerCase())}`}</label>
+        <textarea id="ta-text">${escapeHtml(initial)}</textarea>
         <div class="hint" id="ta-count"></div>
         <div class="modal-actions">
           <button class="btn btn-primary" id="ta-save">Save</button>
@@ -1316,7 +1325,16 @@ function openTextArtifact(field, task) {
   ta.addEventListener('input', tally);
   tally();
   modal.querySelector('#ta-save').addEventListener('click', async () => {
-    await saveProject({ blueprint: { ...bp, [field]: modal.querySelector('#ta-text').value } });
+    const value = modal.querySelector('#ta-text').value;
+    if (perSession) {
+      const patch = { sessionNotes: { ...notes, [key]: value } };
+      // Anything written before this split lived in the shared field; move it
+      // to its session rather than leaving a duplicate behind.
+      if (hadLegacy) patch.blueprint = { ...bp, [field]: '' };
+      await saveProject(patch);
+    } else {
+      await saveProject({ blueprint: { ...bp, [field]: value } });
+    }
     modal.remove();
     render();
   });
@@ -1520,6 +1538,16 @@ function blueprintMarkdown(project, warmups, entries) {
   section('Premise', bp.premise);
   section('Theme', bp.theme);
   section('Notes', bp.notes);
+
+  const sn = project.sessionNotes || {};
+  const writtenTasks = BLUEPRINT_TASKS.filter((t) => (sn[t.id] || '').trim());
+  if (writtenTasks.length) {
+    out.push('## Blueprint sessions\n');
+    writtenTasks.forEach((t) => {
+      out.push(`### ${BLUEPRINT_TASKS.indexOf(t) + 1}. ${t.name}\n`);
+      out.push(`${sn[t.id].trim()}\n`);
+    });
+  }
 
   const cast = project.characters || [];
   if (cast.length) {
@@ -1913,9 +1941,33 @@ function renderStory() {
       <div class="eyebrow">The idea</div>
       <h2>${escapeHtml(project.title)}</h2>
       ${field('Logline', 'logline', bp.logline)}
-      ${field('Premise', 'premise', bp.premise)}
-      ${field('Theme', 'theme', bp.theme)}
-      ${field('Notes', 'notes', bp.notes)}
+      ${bp.premise ? field('Premise', 'premise', bp.premise) : ''}
+      ${bp.theme ? field('Theme', 'theme', bp.theme) : ''}
+      ${bp.notes ? field('Notes', 'notes', bp.notes) : ''}
+    </div>`;
+
+  const sessionNotes = project.sessionNotes || {};
+  const written = BLUEPRINT_TASKS
+    .filter((t) => (sessionNotes[t.id] || '').trim())
+    .map((t) => {
+      const text = sessionNotes[t.id];
+      const n = BLUEPRINT_TASKS.indexOf(t) + 1;
+      return `
+        <div class="doc" data-session="${t.id}">
+          <div class="doc-label">Session ${n} &middot; ${escapeHtml((ARTIFACT_LABEL[t.artifact] || t.artifact).toLowerCase())}</div>
+          <div class="doc-title">${escapeHtml(t.name)}</div>
+          <div class="doc-preview">${escapeHtml(text.replace(/\s+/g, ' ').slice(0, 120))}${text.length > 120 ? '…' : ''}</div>
+          <div class="doc-meta">${fmt(countWords(text))} words</div>
+        </div>`;
+    }).join('');
+
+  const notesCard = `
+    <div class="card">
+      <div class="eyebrow">Session writing &middot; ${BLUEPRINT_TASKS.filter((t) => (sessionNotes[t.id] || '').trim()).length} of ${BLUEPRINT_TASKS.length}</div>
+      <h2>Your blueprint documents</h2>
+      ${written
+        ? `<p class="prose muted" style="margin-bottom:14px">One document per session, so nothing you write gets written over.</p><div class="doc-grid">${written}</div>`
+        : '<p class="prose muted" style="margin:0">Nothing yet. Each blueprint session you write saves its own document here.</p>'}
     </div>`;
 
   const castCard = `
@@ -2039,12 +2091,18 @@ function renderStory() {
       </div>
     </div>`;
 
-  const wrap = el(`<div>${homesCard}${premiseCard}${castCard}${beatsCard}${scenesCard}${exportCard}${phaseCard}</div>`);
+  const wrap = el(`<div>${homesCard}${premiseCard}${notesCard}${castCard}${beatsCard}${scenesCard}${exportCard}${phaseCard}</div>`);
   wrap.querySelector('#ex-bp').addEventListener('click', () => downloadBlueprint(false));
   wrap.querySelector('#ex-bp-all').addEventListener('click', () => downloadBlueprint(true));
 
   wrap.querySelectorAll('[data-text]').forEach((n) => {
     n.addEventListener('click', () => openTextArtifact(n.dataset.text));
+  });
+  wrap.querySelectorAll('[data-session]').forEach((n) => {
+    n.addEventListener('click', () => {
+      const t = BLUEPRINT_TASKS.find((x) => x.id === n.dataset.session);
+      openTextArtifact(t.artifact, t);
+    });
   });
   wrap.querySelectorAll('[data-char]').forEach((n) => {
     n.addEventListener('click', () => openCastEditor(n.dataset.char));

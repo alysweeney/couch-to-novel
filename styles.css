@@ -931,3 +931,59 @@ textarea { resize: vertical; min-height: 74px; }
     border-radius: 0;
   }
 }
+
+
+/* --- Blueprint documents ------------------------------------------------ */
+/* Thirty sessions of exploratory prose rendered inline would be a wall. Each
+   collapses to a card you can scan: which session, what it opens with, how
+   long it ran. */
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.doc {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tone);
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--tone) 4%, var(--surface));
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.doc:hover { border-color: var(--tone); transform: translateY(-1px); }
+.doc-label {
+  font-size: var(--t-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--muted);
+}
+.doc-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--heading);
+  margin: 4px 0 6px;
+  line-height: 1.25;
+}
+.doc-preview {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.doc-meta { font-size: 11.5px; color: var(--muted); margin-top: 8px; font-weight: 700; }
+
+/* The single-value artifacts clamp too -- a long premise shouldn't push the
+   rest of the page off screen. */
+.artifact-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

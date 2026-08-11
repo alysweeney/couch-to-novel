@@ -733,7 +733,7 @@ async function startDrafting() {
 function renderBlueprintSession(project, entries, state) {
   const todayEntry = entries.find((e) => e.date === todayStr()) || {};
   const task = state.bpTask;
-  const week = task ? BLUEPRINT_WEEKS.find((w) => w.week === task.week) : null;
+  const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
 
   const headerCard = `
@@ -741,7 +741,7 @@ function renderBlueprintSession(project, entries, state) {
       <div class="eyebrow">Blueprint &middot; ${escapeHtml(project.title)}</div>
       <div class="today-target">${state.bpDone}<small> of ${BLUEPRINT_TASKS.length} done</small></div>
       <div class="progress"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>
-      <div class="muted" style="font-size:13px">${week ? `Week ${week.week}: ${escapeHtml(week.name)}` : 'Blueprint complete'}</div>
+      <div class="muted" style="font-size:13px">${mod ? `Module ${mod.id}: ${escapeHtml(mod.name)}` : 'Blueprint complete'}</div>
       <div style="height:14px"></div>
       <button class="btn${state.bpComplete ? ' btn-primary' : ''}" id="start-draft">${state.bpComplete ? 'Start drafting' : 'Skip ahead to drafting'}</button>
       ${state.bpComplete ? '' : '<div class="hint">You can leave the blueprint at any point. Outlining is the most comfortable place in the world to hide.</div>'}
@@ -758,7 +758,7 @@ function renderBlueprintSession(project, entries, state) {
 
   const mainCard = task
     ? `<div class="card">
-         <div class="eyebrow">Today's work &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
+         <div class="eyebrow">Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length} &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
          <h2>${escapeHtml(task.name)}</h2>
          <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
          <div class="lesson-practice"><div class="eyebrow" style="margin-bottom:4px">Why</div>${escapeHtml(task.help)}</div>
@@ -785,15 +785,15 @@ function renderBlueprintSession(project, entries, state) {
 
   const weeksCard = `
     <div class="card">
-      <div class="eyebrow">The four weeks</div>
-      ${BLUEPRINT_WEEKS.map((w) => {
-        const ts = blueprintTasksForWeek(w.week);
+      <div class="eyebrow">The two modules</div>
+      ${BLUEPRINT_MODULES.map((m) => {
+        const ts = blueprintTasksForModule(m.id);
         const done = ts.filter((t) => state.bpMarks[t.id]).length;
         return `<div class="lesson-row" style="cursor:default">
           <div class="lesson-mark">${done === ts.length ? '✓' : done ? '◐' : '○'}</div>
           <div>
-            <div class="lesson-title">Week ${w.week}: ${escapeHtml(w.name)}</div>
-            <div class="lesson-sub">${done}/${ts.length} &middot; ${escapeHtml(w.blurb)}</div>
+            <div class="lesson-title">Module ${m.id}: ${escapeHtml(m.name)}</div>
+            <div class="lesson-sub">${done}/${ts.length} sessions &middot; ${escapeHtml(m.blurb)}</div>
           </div>
         </div>`;
       }).join('')}

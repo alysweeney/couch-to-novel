@@ -44,7 +44,7 @@ const LESSONS = [
       after: 'She let herself into the flat and stood in the dark a while before turning on the light. Her mother\'s coat was still on the hook by the door. She had meant to deal with it in the spring, and then in the summer, and now the year had turned again. She took it down. Underneath, on the hook, was a second key she had never seen.',
       note: 'The first is complete. It has a shape, an ache, a closing cadence — as flash it works, and there is nothing wrong with it. The second uses the same material and the same voice, but ends owing something. Note what did NOT change: no more drama, no bigger emotion, no cliffhanger. One small physical action was added, and it produced a consequence the next scene has to deal with. That is the entire adjustment, repeated a few hundred times.',
     },
-    practice: 'Take the last thing you wrote. Write one sentence starting "Because this happened, the next scene has to..." If you cannot finish it, the scene is decorative — good, but decorative. Then find the smallest physical action you could add that would let you finish the sentence.',
+    practice: "Pick a moment you have imagined but never written -- one you could describe in your sleep. Write it in three sentences. Now write a fourth sentence: the thing that happens immediately after, which those three make unavoidable. If the fourth sentence will not come, the moment is complete in itself. That is not a failure -- it is the instinct this whole course is built on top of, and the fourth sentence is the only thing being added to it.",
   },
   {
     id: 'ls-therefore-but', module: 'm0', beat: null, minutes: 8,

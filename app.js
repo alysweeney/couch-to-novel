@@ -1192,7 +1192,7 @@ function renderBlueprintSession(project, entries, state) {
   wrap.querySelector('#see-all-sessions').addEventListener('click', () => navigate('learn'));
 
   const open = wrap.querySelector('#bp-open');
-  if (open) open.addEventListener('click', () => openArtifactEditor(task.artifact));
+  if (open) open.addEventListener('click', () => openArtifactEditor(task.artifact, task));
   const done = wrap.querySelector('#bp-done');
   if (done) {
     done.addEventListener('click', async () => {
@@ -1242,7 +1242,7 @@ function openBlueprintTask(task) {
 
   modal.querySelector('#bpt-open').addEventListener('click', () => {
     modal.remove();
-    openArtifactEditor(task.artifact);
+    openArtifactEditor(task.artifact, task);
   });
   modal.querySelector('#bpt-done').addEventListener('click', async () => {
     const next = { ...marks };
@@ -1259,27 +1259,47 @@ function openBlueprintTask(task) {
 
 // ---------- Artifact editors ----------
 
-function openArtifactEditor(kind) {
-  if (kind === 'characters') return openCastEditor();
-  if (kind === 'beats') return openBeatNotesEditor();
-  if (kind === 'scenes') return openSceneEditor();
-  return openTextArtifact(kind);
+
+// The artifact editors are reached from a session card, and opening one used to
+// drop you into a blank box with no reminder of what was asked. Every editor
+// restates its prompt when it knows which session sent you.
+function taskPrompt(task) {
+  if (!task) return '';
+  return `
+    <div class="eyebrow">${escapeHtml(task.minutes ? `${task.minutes} min` : 'Session')}</div>
+    <h2>${escapeHtml(task.name)}</h2>
+    <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
+    <div style="height:16px"></div>`;
 }
 
-function openTextArtifact(field) {
+function openArtifactEditor(kind, task) {
+  if (kind === 'characters') return openCastEditor(null, task);
+  if (kind === 'beats') return openBeatNotesEditor(null, task);
+  if (kind === 'scenes') return openSceneEditor(null, task);
+  return openTextArtifact(kind, task);
+}
+
+function openTextArtifact(field, task) {
   const bp = projectCache.blueprint || {};
   const modal = el(`
     <div class="modal-backdrop">
-      <div class="modal-card">
-        <div class="eyebrow">Blueprint</div>
-        <h2>${escapeHtml(ARTIFACT_LABEL[field] || field)}</h2>
-        <textarea id="ta-text" style="min-height:220px">${escapeHtml(bp[field] || '')}</textarea>
-        <div style="height:12px"></div>
-        <button class="btn btn-primary" id="ta-save">Save</button>
-        <div style="height:8px"></div>
-        <button class="btn btn-ghost" id="ta-close" style="width:100%">Close</button>
+      <div class="modal-card is-writing">
+        ${task ? taskPrompt(task) : ''}
+        <label for="ta-text">Your ${escapeHtml((ARTIFACT_LABEL[field] || field).toLowerCase())}</label>
+        <textarea id="ta-text">${escapeHtml(bp[field] || '')}</textarea>
+        <div class="hint" id="ta-count"></div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="ta-save">Save</button>
+          <button class="btn" id="ta-close">Close</button>
+        </div>
       </div>
     </div>`);
+
+  const ta = modal.querySelector('#ta-text');
+  const count = modal.querySelector('#ta-count');
+  const tally = () => { count.textContent = `${fmt(countWords(ta.value))} words`; };
+  ta.addEventListener('input', tally);
+  tally();
   modal.querySelector('#ta-save').addEventListener('click', async () => {
     await saveProject({ blueprint: { ...bp, [field]: modal.querySelector('#ta-text').value } });
     modal.remove();
@@ -1291,7 +1311,7 @@ function openTextArtifact(field) {
   modal.querySelector('#ta-text').focus();
 }
 
-function openCastEditor(editId) {
+function openCastEditor(editId, task) {
   const cast = projectCache.characters || [];
   const c = cast.find((x) => x.id === editId) || { id: uid(), name: '', role: '', want: '', need: '', wound: '', notes: '' };
   const isNew = !cast.find((x) => x.id === c.id);
@@ -1299,6 +1319,7 @@ function openCastEditor(editId) {
   const modal = el(`
     <div class="modal-backdrop">
       <div class="modal-card">
+        ${task ? taskPrompt(task) : ''}
         <div class="eyebrow">Cast</div>
         <h2>${isNew ? 'New character' : escapeHtml(c.name || 'Character')}</h2>
         <label for="ch-name">Name</label>
@@ -1348,7 +1369,7 @@ function openCastEditor(editId) {
   document.getElementById('modal-root').appendChild(modal);
 }
 
-function openBeatNotesEditor(beatKey) {
+function openBeatNotesEditor(beatKey, task) {
   const project = projectCache;
   const beats = computeBeats(project);
   const notes = project.beatNotes || {};
@@ -1362,6 +1383,7 @@ function openBeatNotesEditor(beatKey) {
   const modal = el(`
     <div class="modal-backdrop">
       <div class="modal-card">
+        ${task ? taskPrompt(task) : ''}
         <div class="eyebrow">Beats</div>
         <h2>Your fifteen beats</h2>
         <p class="prose muted">A sentence or two each. Then read them in order and check each one makes the next necessary.</p>
@@ -1389,7 +1411,7 @@ function openBeatNotesEditor(beatKey) {
   }
 }
 
-function openSceneEditor(sceneId) {
+function openSceneEditor(sceneId, task) {
   const project = projectCache;
   const scenes = project.scenes || [];
 
@@ -1561,18 +1583,18 @@ function openWarmupExercise(exercise) {
 
   const modal = el(`
     <div class="modal-backdrop">
-      <div class="modal-card">
+      <div class="modal-card is-writing">
         <div class="eyebrow">Warm-up &middot; ${exercise.minutes} min</div>
         <h2>${escapeHtml(exercise.name)}</h2>
         <p class="beat-prompt">${escapeHtml(exercise.prompt)}</p>
 
         <label for="wu-text">Write it here</label>
-        <textarea id="wu-text" style="min-height:200px" placeholder="Nothing here counts toward your novel."></textarea>
+        <textarea id="wu-text" placeholder="Nothing here counts toward your novel."></textarea>
         <div class="hint" id="wu-count">0 words</div>
-        <div style="height:12px"></div>
-        <button class="btn btn-primary" id="wu-save">Save this piece</button>
-        <div style="height:8px"></div>
-        <button class="btn btn-ghost" id="wu-close" style="width:100%">Close</button>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="wu-save">Save this piece</button>
+          <button class="btn" id="wu-close">Close</button>
+        </div>
 
         ${pieces.length ? `<div style="height:22px"></div><div class="eyebrow">Your pieces (${pieces.length})</div>${history}` : ''}
       </div>

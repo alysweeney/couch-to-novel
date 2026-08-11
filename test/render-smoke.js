@@ -103,4 +103,34 @@ tryRender('blueprint export builds', function () {
   blueprintMarkdown(projectCache, [{ id: 'w', date: today, exerciseId: 'wu-sensory', text: 'hi there' }]);
 });
 
+
+print('-- modals and editors --');
+projectCache = baseProject({
+  scenes: distributeScenes(computeBeats(baseProject()), 36),
+  characters: [{ id: 'c', name: 'X', role: 'lead', want: 'w', need: 'n', wound: 'd', notes: '' }],
+  blueprint: { logline: 'L', premise: 'P', theme: 'T', notes: 'N' },
+});
+entriesCache = [];
+var sampleTask = BLUEPRINT_TASKS[0];
+
+// With a task (opened from a session card) and without (opened from Story) --
+// the second path is where a missing null-guard would surface.
+tryRender('text artifact, from a session', function () { openTextArtifact('notes', sampleTask); });
+tryRender('text artifact, from Story', function () { openTextArtifact('notes'); });
+tryRender('cast editor, new', function () { openCastEditor(null, sampleTask); });
+tryRender('cast editor, existing', function () { openCastEditor('c'); });
+tryRender('beat notes editor', function () { openBeatNotesEditor(null, sampleTask); });
+tryRender('beat notes, one beat', function () { openBeatNotesEditor('setup'); });
+tryRender('scene editor, generate', function () { openSceneEditor(); });
+tryRender('scene editor, one scene', function () { openSceneEditor(projectCache.scenes[0].id); });
+tryRender('warm-up writing', function () { openWarmupExercise(WARMUPS[0]); });
+tryRender('lesson reader', function () { openLesson(LESSONS[0]); });
+tryRender('blueprint task modal', function () { openBlueprintTask(sampleTask); });
+tryRender('genre confirm', function () { openGenreConfirm(); });
+tryRender('settings', function () { openSettings(); });
+tryRender('paste counter', function () { openPasteCounter({ value: '' }); });
+tryRender('artifact editor routes to each kind', function () {
+  ['notes', 'characters', 'beats', 'scenes'].forEach(function (k) { openArtifactEditor(k, sampleTask); });
+});
+
 print(fails === 0 ? '\nALL RENDERS OK' : '\n' + fails + ' RENDER FAILURES');

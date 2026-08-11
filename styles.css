@@ -834,16 +834,22 @@ textarea { resize: vertical; min-height: 74px; }
   left: -1px; top: -1px; bottom: -1px;
   width: 5px;
   border-radius: var(--radius) 0 0 var(--radius);
-  background: var(--tone);
+  background: var(--accent);
 }
 .step.is-current .eyebrow { color: var(--tone-deep); }
 .step.is-current h2 { color: var(--tone-deep); }
 
 /* A finished step collapses to its title and its undo. The detail is still
    one click away, but it stops competing for attention with the work left. */
-.step.is-done { opacity: 0.62; padding-top: 16px; padding-bottom: 16px; }
-.step.is-done:hover { opacity: 1; }
-.step.is-done h2 { font-size: 19px; margin-bottom: 0; }
+.step.is-done {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--tone-wash));
+  border-color: color-mix(in srgb, var(--border) 60%, transparent);
+  box-shadow: none;
+}
+.step.is-done h2 { font-size: 19px; margin-bottom: 0; color: var(--muted); }
+.step.is-done .eyebrow { color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .step.is-done .beat-prompt,
 .step.is-done .home-strip,
 .step.is-done .lesson-practice,

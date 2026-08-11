@@ -733,7 +733,7 @@ function renderToday() {
       <div style="height:12px"></div>
       <div class="btn-row">
         <button class="btn${primary(1)}" id="warmup-write">Write it here</button>
-        <button class="btn" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Mark done'}</button>
+        <button class="btn" id="warmup-done">${todayEntry.warmedUp ? 'Undo' : 'Mark done'}</button>
       </div>
     </div>`;
 
@@ -816,7 +816,7 @@ function renderToday() {
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
+      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Done'}</button>
     </div>`;
 
   // The rail answers "what's left of today", not "where am I in the
@@ -1063,11 +1063,17 @@ function openGenreConfirm() {
 
 function renderBlueprintSession(project, entries, state) {
   const todayEntry = entries.find((e) => e.date === todayStr()) || {};
-  const task = state.bpTask;
+  const task = doneToday || state.bpTask;
   const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
   // Which of the three steps you're on, so exactly one card is loud.
   const bpSessionDone = !!todayEntry.sessionDone;
+  // Once today's session is marked done the card keeps showing THAT task with
+  // an undo, rather than silently advancing to the next one and offering to
+  // mark it done as well.
+  const doneToday = bpSessionDone
+    ? BLUEPRINT_TASKS.find((t) => t.id === todayEntry.sessionTaskId) || null
+    : null;
   const step = !todayEntry.warmedUp ? 1 : !bpSessionDone ? 2 : 3;
   const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
   // While the genre prompt is up it is the one thing to do, so the step
@@ -1106,7 +1112,7 @@ function renderBlueprintSession(project, entries, state) {
       <div style="height:12px"></div>
       <div class="btn-row">
         <button class="btn${primary(1)}" id="warmup-write">Write it here</button>
-        <button class="btn" id="warmup-done">${todayEntry.warmedUp ? '✓ Warmed up' : 'Mark done'}</button>
+        <button class="btn" id="warmup-done">${todayEntry.warmedUp ? 'Undo' : 'Mark done'}</button>
       </div>
     </div>`;
 
@@ -1120,7 +1126,7 @@ function renderBlueprintSession(project, entries, state) {
          <div style="height:14px"></div>
          <div class="btn-row">
            <button class="btn${primary(2)}" id="bp-open">Open your ${escapeHtml((ARTIFACT_LABEL[task.artifact] || '').toLowerCase())}</button>
-           <button class="btn" id="bp-done">Mark done</button>
+           <button class="btn" id="bp-done">${bpSessionDone ? 'Undo' : 'Mark done'}</button>
          </div>
        </div>`
     : `<div class="card">
@@ -1136,7 +1142,7 @@ function renderBlueprintSession(project, entries, state) {
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
+      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Done'}</button>
     </div>`;
 
   const bpMod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
@@ -1190,8 +1196,16 @@ function renderBlueprintSession(project, entries, state) {
   const done = wrap.querySelector('#bp-done');
   if (done) {
     done.addEventListener('click', async () => {
-      await saveProject({ blueprintMarks: { ...(project.blueprintMarks || {}), [task.id]: { date: todayStr() } } });
-      await patchTodayEntry({ sessionDone: true });
+      const marks = { ...(project.blueprintMarks || {}) };
+      if (bpSessionDone) {
+        delete marks[task.id];
+        await saveProject({ blueprintMarks: marks });
+        await patchTodayEntry({ sessionDone: false, sessionTaskId: '' });
+      } else {
+        marks[task.id] = { date: todayStr() };
+        await saveProject({ blueprintMarks: marks });
+        await patchTodayEntry({ sessionDone: true, sessionTaskId: task.id });
+      }
       render();
     });
   }

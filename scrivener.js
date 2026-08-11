@@ -89,11 +89,27 @@ export async function ensurePermission(handle) {
   return (await handle.requestPermission(opts)) === 'granted';
 }
 
-export async function connectProject() {
-  const handle = await window.showDirectoryPicker({ id: 'scriv', mode: 'read' });
-  if (!handle.name.endsWith('.scriv')) {
-    throw new Error(`That folder is "${handle.name}". Pick the .scriv folder itself, not the folder containing it.`);
+// macOS marks .scriv as a package, so file dialogs render it as a single
+// document and a folder picker refuses to select it. Underneath it is an
+// ordinary directory, which the File System Access API can traverse -- so we
+// have you pick the folder that CONTAINS the project and find it from there.
+export async function findProjects() {
+  const parent = await window.showDirectoryPicker({ id: 'scriv', mode: 'read' });
+
+  // If a browser or platform does allow picking the package directly, take it.
+  if (parent.name.endsWith('.scriv')) return [parent];
+
+  const found = [];
+  for await (const [name, entry] of parent.entries()) {
+    if (entry.kind === 'directory' && name.endsWith('.scriv')) found.push(entry);
   }
+  if (!found.length) {
+    throw new Error(`No Scrivener project inside "${parent.name}". Pick the folder your .scriv project sits in — for a project at Documents/Book.scriv, choose Documents.`);
+  }
+  return found;
+}
+
+export async function useProject(handle) {
   await idbPut(HANDLE_KEY, handle);
   return handle;
 }

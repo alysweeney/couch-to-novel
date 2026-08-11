@@ -321,6 +321,33 @@ function scrivStatusLine(project) {
   return `${escapeHtml(s.projectName)} &middot; synced ${when}`;
 }
 
+function chooseScrivProject(candidates) {
+  return new Promise((resolve) => {
+    const modal = el(`
+      <div class="modal-backdrop">
+        <div class="modal-card">
+          <div class="eyebrow">Scrivener</div>
+          <h2>Which project?</h2>
+          <p class="prose muted">Found ${candidates.length} Scrivener projects in that folder.</p>
+          ${candidates.map((c, i) => `
+            <div class="lesson-row" data-idx="${i}">
+              <div class="lesson-mark">📄</div>
+              <div><div class="lesson-title">${escapeHtml(c.name)}</div></div>
+            </div>`).join('')}
+          <div style="height:14px"></div>
+          <button class="btn btn-ghost" id="cp-cancel" style="width:100%">Cancel</button>
+        </div>
+      </div>`);
+    const done = (v) => { modal.remove(); resolve(v); };
+    modal.querySelectorAll('[data-idx]').forEach((row) => {
+      row.addEventListener('click', () => done(candidates[Number(row.dataset.idx)]));
+    });
+    modal.querySelector('#cp-cancel').addEventListener('click', () => done(null));
+    modal.addEventListener('click', (e) => { if (e.target === modal) done(null); });
+    document.getElementById('modal-root').appendChild(modal);
+  });
+}
+
 function openScrivBreakdown() {
   const s = (projectCache || {}).scrivener;
   if (!s) return;
@@ -1844,7 +1871,10 @@ function openSettings() {
           await Scriv.disconnect();
           scrivHandle = null;
         } else {
-          scrivHandle = await Scriv.connectProject();
+          const found = await Scriv.findProjects();
+          const chosen = found.length === 1 ? found[0] : await chooseScrivProject(found);
+          if (!chosen) return;
+          scrivHandle = await Scriv.useProject(chosen);
         }
         modal.remove();
         render();

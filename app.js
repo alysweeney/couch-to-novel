@@ -427,13 +427,13 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
   btn.addEventListener('click', () => navigate(btn.dataset.route));
 });
 
-// One deep tone per tab, set on <body> so every component reads a single
-// --tone variable rather than each knowing which tab it is on.
+// One deep tone per tab, set on the root element so every component -- and
+// every property derived from it -- reads a single --tone variable.
 const ROUTE_TONE = { today: 'today', learn: 'learn', studio: 'studio', story: 'story', map: 'story', trends: 'trends' };
 
 function syncNav() {
   const route = getRoute();
-  document.body.dataset.tone = ROUTE_TONE[route] || 'today';
+  document.documentElement.dataset.tone = ROUTE_TONE[route] || 'today';
   document.getElementById('topbar-title').textContent = topbarTitle(projectCache, route);
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.route === route);

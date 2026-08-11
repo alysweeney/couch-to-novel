@@ -31,8 +31,11 @@
   --deepink: #243c45;
   --orange: #d9552a;
 
-  /* Active tone: set per route on <body>, so components read one variable
-     instead of every component knowing which tab it is on. */
+  /* Active tone: set per route on the ROOT element, not on body. Custom
+     properties resolve against the element they are DECLARED on, so with the
+     attribute on <body> everything derived here (--bg and the tone scale)
+     kept resolving against :root's default and only components reading
+     var(--tone) directly followed the tab. */
   --tone: var(--teal);
   --tone-deep: color-mix(in srgb, var(--tone) 74%, #000);
   --tone-tint: color-mix(in srgb, var(--tone) 32%, var(--cream));
@@ -70,11 +73,11 @@
   --t-label: 11px;
 }
 
-body[data-tone="today"]    { --tone: var(--teal); }
-body[data-tone="learn"]    { --tone: var(--slate); }
-body[data-tone="studio"]   { --tone: var(--plum); }
-body[data-tone="story"]    { --tone: var(--rose); }
-body[data-tone="trends"]   { --tone: var(--deepink); }
+:root[data-tone="today"]    { --tone: var(--teal); }
+:root[data-tone="learn"]    { --tone: var(--slate); }
+:root[data-tone="studio"]   { --tone: var(--plum); }
+:root[data-tone="story"]    { --tone: var(--rose); }
+:root[data-tone="trends"]   { --tone: var(--deepink); }
 
 @media (prefers-color-scheme: dark) {
   :root {

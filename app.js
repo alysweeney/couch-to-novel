@@ -1,4 +1,5 @@
 import * as Cloud from './cloud.js';
+import * as Scriv from './scrivener.js';
 
 // ---------- Utilities ----------
 
@@ -271,6 +272,83 @@ async function patchTodayEntry(patch) {
     ? { ...existing, ...patch }
     : { id: uid(), date, words: 0, note: '', ...patch };
   await upsertEntry(entry);
+}
+
+// ---------- Scrivener (read-only) ----------
+
+let scrivHandle = null;
+
+async function loadScrivHandle() {
+  if (!Scriv.isSupported()) return null;
+  scrivHandle = await Scriv.getStoredHandle();
+  return scrivHandle;
+}
+
+// Sync sets *today's* entry so the cumulative total matches the manuscript.
+// Keeping the daily-log shape means pace, streaks, the chart and drift all
+// carry on working untouched -- they only ever needed the running total, and
+// this way a manuscript number and a hand-typed one are the same kind of thing.
+async function syncScrivener() {
+  if (!scrivHandle) throw new Error('No project connected.');
+  const result = await Scriv.syncFromHandle(scrivHandle);
+
+  const today = todayStr();
+  const priorDays = entriesCache
+    .filter((e) => e.date !== today)
+    .reduce((s, e) => s + (e.words || 0), 0);
+  // Deleting words can put the manuscript below what earlier days already
+  // logged. Clamping at zero keeps history honest rather than inventing a
+  // negative day; the discrepancy shows up in the breakdown.
+  const todayWords = Math.max(0, result.total - priorDays);
+
+  await patchTodayEntry({ words: todayWords, source: 'scrivener' });
+  await saveProject({
+    scrivener: {
+      projectName: result.projectName,
+      syncedAt: result.syncedAt,
+      total: result.total,
+      documents: result.documents,
+    },
+  });
+  return result;
+}
+
+function scrivStatusLine(project) {
+  const s = project.scrivener;
+  if (!s) return '';
+  const mins = Math.round((Date.now() - new Date(s.syncedAt).getTime()) / 60000);
+  const when = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+  return `${escapeHtml(s.projectName)} &middot; synced ${when}`;
+}
+
+function openScrivBreakdown() {
+  const s = (projectCache || {}).scrivener;
+  if (!s) return;
+  const rows = s.documents.length
+    ? s.documents.map((d) => `
+        <div class="entry-row">
+          <div>
+            <div class="entry-date">${escapeHtml(d.title)}</div>
+            <div class="entry-note">${escapeHtml(d.path)}</div>
+          </div>
+          <div class="entry-words">${fmt(d.words)}</div>
+        </div>`).join('')
+    : '<p class="prose muted">No documents in the Draft folder yet.</p>';
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Manuscript &middot; ${escapeHtml(s.projectName)}</div>
+        <h2>${fmt(s.total)} words in ${s.documents.length} documents</h2>
+        <p class="prose muted">Only documents inside Scrivener's Draft folder are counted. Front matter, character sketches, research and template sheets sit outside it and are ignored, as is anything you've unticked from Include in Compile.</p>
+        ${rows}
+        <div style="height:16px"></div>
+        <button class="btn btn-ghost" id="sb-close" style="width:100%">Close</button>
+      </div>
+    </div>`);
+  modal.querySelector('#sb-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('modal-root').appendChild(modal);
 }
 
 // ---------- Routing ----------
@@ -576,9 +654,22 @@ function renderToday() {
       </div>`;
   }
 
+  const scrivCard = scrivHandle
+    ? `<div class="card">
+         <div class="eyebrow">Manuscript &middot; ${scrivStatusLine(project) || 'not synced yet'}</div>
+         <h2>${project.scrivener ? `${fmt(project.scrivener.total)} words` : 'Sync to count'}</h2>
+         <p class="prose muted" style="margin-bottom:12px">Counted straight from your Scrivener Draft folder. Front matter, notes and research are excluded.</p>
+         <div class="btn-row">
+           <button class="btn btn-primary" id="scriv-sync">Sync now</button>
+           ${project.scrivener ? '<button class="btn" id="scriv-breakdown">Breakdown</button>' : ''}
+         </div>
+         <div class="error" id="scriv-error" hidden></div>
+       </div>`
+    : '';
+
   const logCard = `
     <div class="card">
-      <div class="eyebrow">Log today</div>
+      <div class="eyebrow">Log today${scrivHandle ? ' &middot; manual override' : ''}</div>
       <h2>${loggedToday ? `${fmt(loggedToday)} words logged` : 'Nothing logged yet'}</h2>
       <label for="log-words">Words written today</label>
       <input id="log-words" type="number" inputmode="numeric" min="0" step="10" value="${loggedToday || ''}" placeholder="0" />
@@ -619,7 +710,7 @@ function renderToday() {
   const wrap = el(`
     <div class="view-today">
       <div class="grp-head">${headerCard}${lessonCard}</div>
-      <div class="grp-main">${warmupCard}${mainCard}${logCard}${cooldownCard}</div>
+      <div class="grp-main">${warmupCard}${mainCard}${scrivCard}${logCard}${cooldownCard}</div>
       <div class="grp-side">${statsCard}</div>
     </div>`);
 
@@ -662,6 +753,27 @@ function renderToday() {
       render();
     });
   }
+
+  const syncBtn = wrap.querySelector('#scriv-sync');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', async () => {
+      const errBox = wrap.querySelector('#scriv-error');
+      errBox.hidden = true;
+      syncBtn.disabled = true;
+      syncBtn.textContent = 'Syncing...';
+      try {
+        await syncScrivener();
+        render();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.hidden = false;
+        syncBtn.disabled = false;
+        syncBtn.textContent = 'Sync now';
+      }
+    });
+  }
+  const bdBtn = wrap.querySelector('#scriv-breakdown');
+  if (bdBtn) bdBtn.addEventListener('click', openScrivBreakdown);
 
   wrap.querySelector('#paste-count').addEventListener('click', () => openPasteCounter(wrap.querySelector('#log-words')));
 
@@ -1667,6 +1779,15 @@ function openSettings() {
         <button class="btn btn-primary" id="st-save">Save project</button>
         <div style="height:18px"></div>` : ''}
 
+        <div class="eyebrow">Manuscript</div>
+        ${Scriv.isSupported()
+          ? `<button class="btn" id="st-scriv">${scrivHandle ? 'Disconnect Scrivener' : 'Connect a Scrivener project'}</button>
+             <div class="hint">${scrivHandle
+               ? `Connected to ${escapeHtml((projectCache.scrivener || {}).projectName || 'a project')}. Read-only &mdash; this app never writes to your .scriv.`
+               : 'Point the app at your .scriv folder and it counts the Draft folder for you instead of you typing a number. Read-only.'}</div>`
+          : '<div class="hint">Scrivener sync needs the File System Access API, which is Chrome or Edge on desktop only. On this browser, log word counts manually.</div>'}
+        <div style="height:18px"></div>
+
         <button class="btn" id="st-new">Start a new project</button>
         <div class="hint">Wipes the current project and its logged sessions and takes you back through setup. Export a backup first if you want to keep this one. Your warm-up writing is never touched.</div>
         <div style="height:18px"></div>
@@ -1711,6 +1832,26 @@ function openSettings() {
       });
       modal.remove();
       render();
+    });
+  }
+
+  const scrivBtn = modal.querySelector('#st-scriv');
+  if (scrivBtn) {
+    scrivBtn.addEventListener('click', async () => {
+      try {
+        if (scrivHandle) {
+          if (!confirm('Disconnect the Scrivener project? Your logged history is kept.')) return;
+          await Scriv.disconnect();
+          scrivHandle = null;
+        } else {
+          scrivHandle = await Scriv.connectProject();
+        }
+        modal.remove();
+        render();
+      } catch (err) {
+        if (err.name === 'AbortError') return; // folder picker dismissed
+        alert(err.message);
+      }
     });
   }
 
@@ -1779,6 +1920,8 @@ if (Cloud.isConfigured) {
       render();
       return;
     }
+
+    loadScrivHandle().then(() => render());
 
     unsubProject = Cloud.subscribeProject(user.uid, (project) => {
       projectCache = project;

@@ -1074,13 +1074,19 @@ function openGenreConfirm() {
 
 function renderBlueprintSession(project, entries, state) {
   const todayEntry = entries.find((e) => e.date === todayStr()) || {};
-  const bpSessionDone = !!todayEntry.sessionDone;
-  // Once today's session is marked done the card keeps showing THAT task with
-  // an undo, rather than silently advancing to the next one and offering to
-  // mark it done as well.
-  const doneToday = bpSessionDone
-    ? BLUEPRINT_TASKS.find((t) => t.id === todayEntry.sessionTaskId) || null
+  // Sessions completed today, oldest first. A list rather than a flag, because
+  // there's no reason a day is capped at one -- some days you have an hour.
+  // Older entries stored a single id; read those as a list of one.
+  const doneIds = todayEntry.sessionsDone
+    || (todayEntry.sessionTaskId ? [todayEntry.sessionTaskId] : []);
+  const lastDone = doneIds.length
+    ? BLUEPRINT_TASKS.find((t) => t.id === doneIds[doneIds.length - 1]) || null
     : null;
+  // "continuing" means you asked for another session after finishing one, so
+  // the card shows the next task instead of the one you just closed.
+  const continuing = !!todayEntry.continuing;
+  const bpSessionDone = !!lastDone && !continuing;
+  const doneToday = bpSessionDone ? lastDone : null;
   const task = doneToday || state.bpTask;
   const mod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
   const pct = (state.bpDone / BLUEPRINT_TASKS.length) * 100;
@@ -1098,7 +1104,7 @@ function renderBlueprintSession(project, entries, state) {
       <div class="eyebrow">Blueprint &middot; ${escapeHtml(project.title)}</div>
       <div class="today-target">${state.bpDone}<small> of ${BLUEPRINT_TASKS.length} done</small></div>
       <div class="progress"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>
-      <div class="muted" style="font-size:13px">${mod ? `Module ${mod.id}: ${escapeHtml(mod.name)}` : 'Blueprint complete'}</div>
+      <div class="muted" style="font-size:13px">${mod ? `Module ${mod.id}: ${escapeHtml(mod.name)}` : 'Blueprint complete'}${doneIds.length > 1 ? ` &middot; ${doneIds.length} sessions today` : ''}</div>
       <div style="height:14px"></div>
       <button class="btn${state.bpComplete ? ' btn-primary' : ''}" id="start-draft">${state.bpComplete ? 'Start drafting' : 'Skip ahead to drafting'}</button>
       ${state.bpComplete ? '' : '<div class="hint">You can leave the blueprint at any point. Outlining is the most comfortable place in the world to hide.</div>'}
@@ -1138,6 +1144,7 @@ function renderBlueprintSession(project, entries, state) {
          <div class="btn-row">
            <button class="btn${primary(2)}" id="bp-open">Open your ${escapeHtml((ARTIFACT_LABEL[task.artifact] || '').toLowerCase())}</button>
            <button class="btn" id="bp-done">${bpSessionDone ? 'Undo' : 'Mark done'}</button>
+           ${bpSessionDone && state.bpTask ? '<button class="btn" id="bp-next">Do another session</button>' : ''}
          </div>
        </div>`
     : `<div class="card">
@@ -1171,7 +1178,7 @@ function renderBlueprintSession(project, entries, state) {
           <div class="check-mark">✓</div><div class="check-label">Warm-up</div>
         </div>
         <div class="check-row${rowCls(2)}">
-          <div class="check-mark">✓</div><div class="check-label">${task ? `Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length}` : 'Blueprint complete'}</div>
+          <div class="check-mark">✓</div><div class="check-label">${task ? `Session ${state.bpDone + (bpSessionDone ? 0 : 1)} of ${BLUEPRINT_TASKS.length}` : 'Blueprint complete'}${doneIds.length > 1 ? ` &middot; ${doneIds.length} today` : ''}</div>
         </div>
         <div class="check-row${rowCls(3)}">
           <div class="check-mark">✓</div><div class="check-label">Cool-down</div>
@@ -1202,6 +1209,14 @@ function renderBlueprintSession(project, entries, state) {
     });
     render();
   });
+  const nextBtn = wrap.querySelector('#bp-next');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', async () => {
+      await patchTodayEntry({ continuing: true });
+      render();
+    });
+  }
+
   const gcBtn = wrap.querySelector('#confirm-genre');
   if (gcBtn) gcBtn.addEventListener('click', openGenreConfirm);
 
@@ -1221,11 +1236,21 @@ function renderBlueprintSession(project, entries, state) {
       if (bpSessionDone) {
         delete marks[task.id];
         await saveProject({ blueprintMarks: marks });
-        await patchTodayEntry({ sessionDone: false, sessionTaskId: '' });
+        await patchTodayEntry({
+          sessionsDone: doneIds.slice(0, -1),
+          continuing: false,
+          sessionDone: doneIds.length > 1,
+          sessionTaskId: doneIds.length > 1 ? doneIds[doneIds.length - 2] : '',
+        });
       } else {
         marks[task.id] = { date: todayStr() };
         await saveProject({ blueprintMarks: marks });
-        await patchTodayEntry({ sessionDone: true, sessionTaskId: task.id });
+        await patchTodayEntry({
+          sessionsDone: doneIds.concat([task.id]),
+          continuing: false,
+          sessionDone: true,
+          sessionTaskId: task.id,
+        });
       }
       render();
     });

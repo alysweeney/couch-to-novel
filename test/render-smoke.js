@@ -32,7 +32,10 @@ warmupsCache = [];
 print('-- blueprint session, every step position --');
 [[{}, 'nothing done'],
  [{ warmedUp: true }, 'warmed up'],
- [{ warmedUp: true, sessionDone: true, sessionTaskId: 'bp-write-for-yourself' }, 'session done'],
+ [{ warmedUp: true, sessionDone: true, sessionTaskId: 'bp-write-for-yourself' }, 'session done (legacy shape)'],
+ [{ warmedUp: true, sessionsDone: ['bp-write-for-yourself'] }, 'one session done'],
+ [{ warmedUp: true, sessionsDone: ['bp-write-for-yourself'], continuing: true }, 'continuing to a second'],
+ [{ warmedUp: true, sessionsDone: ['bp-write-for-yourself', 'bp-the-wound', 'bp-ten-what-ifs'] }, 'three sessions today'],
  [{ warmedUp: true, sessionDone: true, sessionTaskId: 'bp-write-for-yourself', cooledDown: true }, 'all three done'],
 ].forEach(function (pair) {
   projectCache = baseProject();

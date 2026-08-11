@@ -111,6 +111,24 @@ service cloud.firestore {
 
 This scopes every user to only their own project doc and their own sessions.
 
+## Tests
+
+```
+./test/run.sh
+```
+
+Renders every view in every meaningful state against a stub DOM and fails on any
+exception. It asserts almost nothing about output — its job is to make each
+function actually run.
+
+That distinction earned itself. A syntax check reported the app healthy while
+`renderBlueprintSession` threw a temporal-dead-zone error and Today rendered
+blank: a `const` read one line above its own declaration parses perfectly and
+dies on evaluation. Anything that changes a render path should be run through
+this before deploying.
+
+Needs no install — JavaScriptCore ships with macOS.
+
 ## Running locally
 
 No build step needed — just serve the folder statically, e.g.:

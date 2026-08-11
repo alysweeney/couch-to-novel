@@ -687,6 +687,7 @@ function renderToday() {
       <div class="eyebrow">Warm-up &middot; ${state.warmup.minutes} min &middot; not the manuscript</div>
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
+      ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
       <div style="height:12px"></div>
       <div class="btn-row">
         <button class="btn btn-primary" id="warmup-write">Write it here</button>
@@ -706,6 +707,20 @@ function renderToday() {
   } else {
     const t = state.currentTask;
     const allDone = !t;
+    // Name the actual document when a scene list exists, so "write in
+    // Scrivener" becomes "write in this document" -- the difference between
+    // an instruction and a destination.
+    const scenes = project.scenes || [];
+    const nextScene =
+      scenes.find((sc) => !sc.done && sc.beatKey === focus.key) ||
+      scenes.find((sc) => !sc.done) ||
+      null;
+    const scrivWhere = nextScene
+      ? `Scrivener &rarr; Manuscript &rarr; ${escapeHtml(nextScene.title || `Scene ${nextScene.index}`)}`
+      : 'Scrivener &rarr; Manuscript';
+    const scrivNote = nextScene
+      ? `scene ${nextScene.index} of ${scenes.length}${nextScene.summary ? ` &middot; ${escapeHtml(nextScene.summary.slice(0, 80))}` : ''}`
+      : 'the only writing that counts toward your word target';
     mainCard = `
       <div class="card">
         <div class="eyebrow">${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
@@ -713,6 +728,7 @@ function renderToday() {
           <h2>${escapeHtml(t.label)}</h2>
           <div class="session-meta">Assignment ${state.taskNumber} of ${state.beatTasks.length} &middot; may take more than one session</div>
           <p class="beat-prompt">${escapeHtml(t.detail)}</p>
+          ${homeStrip(scrivWhere, scrivNote, 'external')}
           <div style="height:14px"></div>
           <button class="btn" id="task-done">Mark this assignment done</button>
         ` : `
@@ -756,6 +772,7 @@ function renderToday() {
       <div class="eyebrow">Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
+      ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
       <div style="height:12px"></div>
       <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
     </div>`;
@@ -911,6 +928,18 @@ function openPasteCounter(targetInput) {
   text.focus();
 }
 
+
+// Every piece of writing the programme asks for has exactly one home, and the
+// card says which. Four kinds exist and only one of them belongs in Scrivener,
+// which is precisely the thing that was impossible to tell from the UI.
+function homeStrip(where, note, kind) {
+  const cls = kind === 'external' ? ' is-external' : kind === 'nowhere' ? ' is-nowhere' : '';
+  return `<div class="home-strip${cls}">
+    <span class="home-label">Goes to</span>
+    <span><span class="home-where">${where}</span>${note ? ` <span class="home-note">&middot; ${note}</span>` : ''}</span>
+  </div>`;
+}
+
 // ---------- Blueprint ----------
 
 const ARTIFACT_LABEL = {
@@ -954,6 +983,7 @@ function renderBlueprintSession(project, entries, state) {
       <div class="eyebrow">Warm-up &middot; ${state.warmup.minutes} min</div>
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
+      ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
       <div style="height:12px"></div>
       <div class="btn-row">
         <button class="btn btn-primary" id="warmup-write">Write it here</button>
@@ -966,6 +996,7 @@ function renderBlueprintSession(project, entries, state) {
          <div class="eyebrow">Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length} &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
          <h2>${escapeHtml(task.name)}</h2>
          <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
+         ${homeStrip(`Story tab &rarr; ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}`, 'in this app &middot; exportable to Scrivener any time')}
          <div class="lesson-practice"><div class="eyebrow" style="margin-bottom:4px">Why</div>${escapeHtml(task.help)}</div>
          <div style="height:14px"></div>
          <div class="btn-row">
@@ -984,6 +1015,7 @@ function renderBlueprintSession(project, entries, state) {
       <div class="eyebrow">Cool-down &middot; ${state.cooldown.minutes} min</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
+      ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
       <div style="height:12px"></div>
       <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
     </div>`;
@@ -1057,6 +1089,7 @@ function openBlueprintTask(task) {
         <div class="eyebrow">Session ${n} of ${BLUEPRINT_TASKS.length} &middot; ${escapeHtml(mod ? mod.name : '')} &middot; ${task.minutes} min</div>
         <h2>${escapeHtml(task.name)}</h2>
         <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
+        ${homeStrip(`Story tab &rarr; ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}`, 'in this app')}
         <div class="lesson-practice">
           <div class="eyebrow" style="margin-bottom:4px">Why</div>
           ${escapeHtml(task.help)}
@@ -1798,6 +1831,17 @@ function renderStory() {
          ${state.bpComplete ? '' : '<div style="height:12px"></div><button class="btn" id="back-to-bp">Back to the blueprint</button>'}
        </div>`;
 
+  const homesCard = `
+    <div class="card">
+      <div class="eyebrow">Where your writing lives</div>
+      <h2>Four homes</h2>
+      <p class="prose muted">Only one of them is Scrivener. Every session card tells you which one it means.</p>
+      ${homeStrip('Warm-ups tab', 'exercises &middot; never counted')}
+      ${homeStrip('Story tab', 'logline, premise, theme, cast, beats, scene summaries')}
+      ${homeStrip('Scrivener &rarr; Manuscript', 'the novel itself &middot; the only thing counted', 'external')}
+      ${homeStrip('Nowhere', 'cool-down notes are for you, not for the app', 'nowhere')}
+    </div>`;
+
   const exportCard = `
     <div class="card">
       <div class="eyebrow">Your writing</div>
@@ -1809,7 +1853,7 @@ function renderStory() {
       </div>
     </div>`;
 
-  const wrap = el(`<div>${premiseCard}${castCard}${beatsCard}${scenesCard}${exportCard}${phaseCard}</div>`);
+  const wrap = el(`<div>${homesCard}${premiseCard}${castCard}${beatsCard}${scenesCard}${exportCard}${phaseCard}</div>`);
   wrap.querySelector('#ex-bp').addEventListener('click', () => downloadBlueprint(false));
   wrap.querySelector('#ex-bp-all').addEventListener('click', () => downloadBlueprint(true));
 

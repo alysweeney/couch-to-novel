@@ -737,3 +737,36 @@ textarea { resize: vertical; min-height: 74px; }
 .check-row.is-done .check-label { color: var(--muted); text-decoration: line-through; }
 .check-row.is-current .check-mark { border-color: var(--tone); box-shadow: 0 0 0 3px var(--tone-wash); }
 .check-row.is-current .check-label { font-weight: 700; }
+
+
+/* --- Where this writing lives ------------------------------------------ */
+/* Four kinds of writing exist in this app and only one of them belongs in
+   Scrivener. Every session card states its own destination, so you never
+   have to remember which is which. */
+
+.home-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--tone-wash);
+  border-left: 3px solid var(--tone);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+.home-strip .home-label {
+  font-size: var(--t-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--tone-deep);
+  white-space: nowrap;
+}
+.home-strip .home-where { color: var(--text); font-weight: 700; }
+.home-strip .home-note { color: var(--muted); }
+.home-strip.is-external { background: color-mix(in srgb, var(--orange) 9%, var(--cream)); border-left-color: var(--orange); }
+.home-strip.is-external .home-label { color: var(--orange); }
+.home-strip.is-nowhere { background: transparent; border-left-color: var(--rule); }

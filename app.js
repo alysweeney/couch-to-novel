@@ -431,9 +431,24 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
 // every property derived from it -- reads a single --tone variable.
 const ROUTE_TONE = { today: 'today', learn: 'learn', studio: 'studio', story: 'story', map: 'story', trends: 'trends' };
 
+
+// The installed-PWA title bar takes its colour from the theme-color meta tag,
+// so pointing it at the page's computed background makes the window chrome
+// follow whichever room you're in. Read the resolved background rather than
+// the custom property: getPropertyValue on a var() chain is not reliably
+// substituted across browsers, whereas backgroundColor always comes back as a
+// concrete rgb().
+function syncThemeColor() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const bg = getComputedStyle(document.body).backgroundColor;
+  if (bg && bg !== 'rgba(0, 0, 0, 0)') meta.setAttribute('content', bg);
+}
+
 function syncNav() {
   const route = getRoute();
   document.documentElement.dataset.tone = ROUTE_TONE[route] || 'today';
+  syncThemeColor();
   document.getElementById('topbar-title').textContent = topbarTitle(projectCache, route);
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.route === route);

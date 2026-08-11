@@ -902,14 +902,20 @@ textarea { resize: vertical; min-height: 74px; }
 .modal-card.is-writing .beat-prompt { flex: 0 0 auto; }
 .modal-card.is-writing > .hint { flex: 0 0 auto; }
 
+/* Right-aligned and sized to their labels. Stretching Save across two thirds
+   of a 2,000px screen made the primary action look like a banner. */
 .modal-actions {
   display: flex;
   gap: 10px;
   margin-top: 14px;
   flex: 0 0 auto;
+  justify-content: flex-end;
 }
-.modal-actions .btn { width: auto; flex: 1; }
-.modal-actions .btn-primary { flex: 2; }
+.modal-actions .btn { width: auto; flex: 0 0 auto; min-width: 168px; }
+
+@media (max-width: 559px) {
+  .modal-actions .btn { flex: 1 1 auto; min-width: 0; }
+}
 
 @media (max-width: 559px) {
   .modal-card.is-writing {

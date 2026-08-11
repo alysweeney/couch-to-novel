@@ -169,10 +169,14 @@ function programState(project, entries) {
   // programme you cannot leave is a trap for a writer whose actual risk is
   // outlining forever.
   const inBlueprint = project.phase === 'blueprint';
+  // Session 5 is the comps exercise, which is the point at which genre becomes
+  // knowable. Confirm it there rather than trusting the guess from setup.
+  const GENRE_GATE_TASK = 'bp-familiar-twist';
   const bpMarks = project.blueprintMarks || {};
   const bpTask = BLUEPRINT_TASKS.find((t) => !bpMarks[t.id]) || null;
   const bpDone = BLUEPRINT_TASKS.filter((t) => bpMarks[t.id]).length;
   const bpComplete = bpDone === BLUEPRINT_TASKS.length;
+  const genreConfirmDue = !!bpMarks[GENRE_GATE_TASK] && !project.genreConfirmed;
 
   // Lessons unlock by position in the manuscript rather than by date, so one
   // arrives when it's about to be useful instead of accumulating into a
@@ -214,6 +218,7 @@ function programState(project, entries) {
     warmup,
     cooldown,
     inBlueprint,
+    genreConfirmDue,
     bpMarks,
     bpTask,
     bpDone,
@@ -328,6 +333,18 @@ async function syncScrivener() {
   // logged. Clamping at zero keeps history honest rather than inventing a
   // negative day; the discrepancy shows up in the breakdown.
   const todayWords = Math.max(0, result.total - priorDays);
+
+  // Sync recomputes today from the manuscript total, so a count typed by hand
+  // this morning would vanish without warning -- which matters most on days
+  // you wrote somewhere other than Scrivener.
+  const existing = entriesCache.find((e) => e.date === today);
+  if (existing && (existing.words || 0) > 0 && existing.source !== 'scrivener') {
+    const ok = confirm(
+      `Today already has ${fmt(existing.words)} words logged by hand.\n\n` +
+      `Syncing replaces that with ${fmt(todayWords)} from Scrivener. If you wrote somewhere else today, that writing will stop being counted.\n\nSync anyway?`
+    );
+    if (!ok) return { ...result, cancelled: true };
+  }
 
   await patchTodayEntry({ words: todayWords, source: 'scrivener' });
   await saveProject({
@@ -564,7 +581,7 @@ function renderSetup() {
 
         <label for="su-genre">Genre</label>
         <select id="su-genre">${genreOptions}</select>
-        <div class="hint">Sets a starting word count. Beat positions are percentages, so they scale to whatever you pick.</div>
+        <div class="hint">A guess is fine &mdash; the blueprint revisits this once you've named your comparable books, and the word target follows. Beat positions are percentages, so they scale to whatever you land on.</div>
 
         <label for="su-target">Target word count</label>
         <input id="su-target" type="number" inputmode="numeric" min="10000" step="1000" />
@@ -600,6 +617,7 @@ function renderSetup() {
     target.value = g ? g.words : 90000;
     syncPace();
   }
+  genre.value = 'unsure';
 
   function syncPace() {
     const words = Number(target.value) || 0;
@@ -630,6 +648,7 @@ function renderSetup() {
       firstName,
       title: wrap.querySelector('#su-title').value.trim() || 'Untitled',
       genre: genre.value,
+      genreConfirmed: false,
       targetWords: words,
       startDate: start.value,
       targetDate: end.value,
@@ -976,6 +995,64 @@ async function startDrafting() {
   render();
 }
 
+
+// Genre is asked for at setup because the word target has to start somewhere,
+// but it isn't knowable until you've named your comparable books. This runs
+// after that session and is the point at which the target becomes real.
+function openGenreConfirm() {
+  const project = projectCache;
+  const opts = GENRE_TARGETS.filter((g) => g.id !== 'unsure')
+    .map((g) => `<option value="${g.id}"${g.id === project.genre ? ' selected' : ''}>${g.label} (~${fmt(g.words)} words)</option>`).join('');
+  const current = GENRE_TARGETS.find((g) => g.id === project.genre);
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Blueprint &middot; after the comps</div>
+        <h2>What are you actually writing?</h2>
+        <p class="prose muted">You started with ${escapeHtml(current ? current.label.toLowerCase() : 'a guess')}. Now that you've named the books yours would sit beside, this is the moment to make it real &mdash; it sets your word target, and the scene list is built from that.</p>
+
+        <label for="gc-genre">Genre</label>
+        <select id="gc-genre">${opts}</select>
+
+        <label for="gc-target">Target word count</label>
+        <input id="gc-target" type="number" inputmode="numeric" min="10000" step="1000" value="${project.targetWords}" />
+        <div class="hint" id="gc-hint"></div>
+
+        <div style="height:16px"></div>
+        <button class="btn btn-primary" id="gc-save">Confirm</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="gc-later" style="width:100%">Still deciding &mdash; ask me later</button>
+      </div>
+    </div>`);
+
+  const sel = modal.querySelector('#gc-genre');
+  const tgt = modal.querySelector('#gc-target');
+  const hint = modal.querySelector('#gc-hint');
+  const suggest = () => {
+    const g = GENRE_TARGETS.find((x) => x.id === sel.value);
+    if (!g) return;
+    hint.textContent = Number(tgt.value) === g.words
+      ? `Typical for ${g.label.toLowerCase()}.`
+      : `${g.label} usually runs about ${fmt(g.words)} words.`;
+  };
+  sel.addEventListener('change', () => { const g = GENRE_TARGETS.find((x) => x.id === sel.value); if (g) tgt.value = g.words; suggest(); });
+  tgt.addEventListener('input', suggest);
+  suggest();
+
+  modal.querySelector('#gc-save').addEventListener('click', async () => {
+    await saveProject({
+      genre: sel.value,
+      targetWords: Number(tgt.value) || project.targetWords,
+      genreConfirmed: true,
+    });
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#gc-later').addEventListener('click', () => modal.remove());
+  document.getElementById('modal-root').appendChild(modal);
+}
+
 function renderBlueprintSession(project, entries, state) {
   const todayEntry = entries.find((e) => e.date === todayStr()) || {};
   const task = state.bpTask;
@@ -992,6 +1069,16 @@ function renderBlueprintSession(project, entries, state) {
       <button class="btn${state.bpComplete ? ' btn-primary' : ''}" id="start-draft">${state.bpComplete ? 'Start drafting' : 'Skip ahead to drafting'}</button>
       ${state.bpComplete ? '' : '<div class="hint">You can leave the blueprint at any point. Outlining is the most comfortable place in the world to hide.</div>'}
     </div>`;
+
+  const genreCard = state.genreConfirmDue
+    ? `<div class="card lesson-callout">
+         <div class="eyebrow">One thing to settle</div>
+         <h2>Is it still ${escapeHtml((GENRE_TARGETS.find((g) => g.id === project.genre) || {}).label || 'that genre')}?</h2>
+         <p class="prose muted">You've named your comps, so genre is knowable now. It sets your word target, and your scene list gets built from that.</p>
+         <div style="height:10px"></div>
+         <button class="btn btn-primary" id="confirm-genre">Confirm your genre</button>
+       </div>`
+    : '';
 
   const warmupCard = `
     <div class="card${todayEntry.warmedUp ? ' is-done' : ''}">
@@ -1057,7 +1144,7 @@ function renderBlueprintSession(project, entries, state) {
 
   const wrap = el(`
     <div class="view-today">
-      <div class="grp-head">${headerCard}</div>
+      <div class="grp-head">${headerCard}${genreCard}</div>
       <div class="grp-main">${warmupCard}${mainCard}${cooldownCard}</div>
       <div class="grp-side">${weeksCard}</div>
     </div>`);
@@ -1071,6 +1158,9 @@ function renderBlueprintSession(project, entries, state) {
     await patchTodayEntry({ cooledDown: !todayEntry.cooledDown });
     render();
   });
+  const gcBtn = wrap.querySelector('#confirm-genre');
+  if (gcBtn) gcBtn.addEventListener('click', openGenreConfirm);
+
   wrap.querySelector('#start-draft').addEventListener('click', async () => {
     if (!state.bpComplete && !confirm('Leave the blueprint and start drafting? You can come back to it any time from the Story tab.')) return;
     await startDrafting();
@@ -1324,6 +1414,7 @@ function openSceneEditor(sceneId) {
         <input id="sc-count" type="number" inputmode="numeric" min="12" max="200" value="${suggested}" />
         <div class="hint">A scene is about the size of a long vignette. That is deliberate: it is the unit you already know how to write.</div>
         ${scenes.length ? '<div class="error">This replaces your existing scene list and its summaries.</div>' : ''}
+        ${project.genre === 'unsure' || !project.genreConfirmed ? '<div class="hint" style="color:var(--warn)">Your genre is still a guess, so this target may be off. Confirming it first will give you a scene count that matches the book you are actually writing.</div>' : ''}
         <div style="height:14px"></div>
         <button class="btn btn-primary" id="sc-gen">${scenes.length ? 'Rebuild the list' : 'Build the list'}</button>
         <div style="height:8px"></div>

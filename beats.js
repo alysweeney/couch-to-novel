@@ -173,6 +173,11 @@ const DEFAULT_TEMPLATE_ID = 'save-the-cat';
 // setup wizard. Beat percentages are length-independent; this just picks the
 // number they get multiplied by.
 const GENRE_TARGETS = [
+  // Deliberately first and the setup default. The blueprint's whole job is
+  // working out what the book is, so demanding a genre before session one is
+  // asking for an answer that hasn't been earned. 90k is a neutral placeholder
+  // and gets revisited once the comps session makes genre knowable.
+  { id: 'unsure', label: 'Not sure yet', words: 90000 },
   { id: 'fantasy', label: 'Fantasy', words: 100000 },
   { id: 'romantasy', label: 'Romantasy', words: 110000 },
   { id: 'historical-fantasy', label: 'Historical fantasy', words: 100000 },

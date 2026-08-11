@@ -63,6 +63,34 @@ function countWords(text) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
+// ---------- Greetings ----------
+// Rotated by day rather than at random, so it's stable across a re-render but
+// different tomorrow.
+
+const GREETINGS = [
+  "{n}, let's work on your novel.",
+  "It's time to write, {n}.",
+  "Back to it, {n}.",
+  "{n}, where were we?",
+  "Let's find some words, {n}.",
+  "Good to see you, {n}.",
+  "{n}, the book is waiting.",
+  "Today's pages, {n}.",
+  "Ready when you are, {n}.",
+  "{n}, one session at a time.",
+];
+
+const ROUTE_TITLE = { learn: 'The course', studio: 'Warm-ups', story: 'Your story', map: 'Your story', trends: 'Progress' };
+
+function topbarTitle(project, route) {
+  if (ROUTE_TITLE[route]) return ROUTE_TITLE[route];
+  const name = (project && project.firstName || '').trim();
+  if (!name) return 'Couch to Novel';
+  const start = project.startDate || todayStr();
+  const day = Math.abs(daysBetween(start, todayStr()));
+  return GREETINGS[day % GREETINGS.length].replace('{n}', name);
+}
+
 // ---------- Program math ----------
 // Everything the app "knows" derives from three inputs: the beat template,
 // the target word count, and the logged entries. Kept pure and free of DOM
@@ -406,6 +434,7 @@ const ROUTE_TONE = { today: 'today', learn: 'learn', studio: 'studio', story: 's
 function syncNav() {
   const route = getRoute();
   document.body.dataset.tone = ROUTE_TONE[route] || 'today';
+  document.getElementById('topbar-title').textContent = topbarTitle(projectCache, route);
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.route === route);
   });
@@ -511,6 +540,10 @@ function renderSetup() {
         <h2>What are you writing?</h2>
         <p class="prose muted">This generates your beat map and a daily word target that adapts as you go.</p>
 
+        <label for="su-name">Your first name</label>
+        <input id="su-name" type="text" placeholder="Aly" value="${escapeHtml(localStorage.getItem('firstName') || '')}" />
+        <div class="hint">Only used to say hello.</div>
+
         <label for="su-title">Working title</label>
         <input id="su-title" type="text" placeholder="Untitled" />
 
@@ -576,7 +609,10 @@ function renderSetup() {
       errBox.hidden = false;
       return;
     }
+    const firstName = wrap.querySelector('#su-name').value.trim();
+    if (firstName) localStorage.setItem('firstName', firstName);
     await saveProject({
+      firstName,
       title: wrap.querySelector('#su-title').value.trim() || 'Untitled',
       genre: genre.value,
       targetWords: words,
@@ -1829,6 +1865,9 @@ function openSettings() {
         <p class="prose muted">${escapeHtml(currentUser.email || '')}</p>
 
         ${project ? `
+        <label for="st-name">Your first name</label>
+        <input id="st-name" type="text" value="${escapeHtml(project.firstName || '')}" />
+
         <label for="st-title">Working title</label>
         <input id="st-title" type="text" value="${escapeHtml(project.title)}" />
 
@@ -1892,7 +1931,10 @@ function openSettings() {
     });
 
     save.addEventListener('click', async () => {
+      const nm = modal.querySelector('#st-name').value.trim();
+      if (nm) localStorage.setItem('firstName', nm);
       await saveProject({
+        firstName: nm,
         title: modal.querySelector('#st-title').value.trim() || 'Untitled',
         genre: genreSel.value,
         targetWords: Number(targetInput.value) || project.targetWords,

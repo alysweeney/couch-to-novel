@@ -987,3 +987,19 @@ textarea { resize: vertical; min-height: 74px; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+
+/* A finished cool-down shows what you wrote rather than an editable box
+   inviting more typing into a session you have closed. */
+.note-saved {
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  padding-left: 13px;
+  border-left: 3px solid var(--tone-tint);
+  color: var(--muted);
+  margin-top: 12px;
+}
+.step.is-done .note-saved,
+.step.is-done label,
+.step.is-done textarea { display: none; }

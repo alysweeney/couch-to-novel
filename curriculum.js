@@ -18,19 +18,24 @@
 // Rotated by day so the same one doesn't come up twice in a month. None of
 // these touch the manuscript; that's the point. The cost of a bad warm-up
 // should be zero.
+//
+// needsStory marks the ones that assume a protagonist exists or that you wrote
+// something last session. In module 1 of the blueprint you have neither, so
+// "pick something your protagonist owns" is an exercise you cannot start.
+// Those are held back until there is a cast.
 
 const WARMUPS = [
   { id: 'wu-sensory', minutes: 5, name: 'Sensory sweep',
     prompt: 'Describe the room you are sitting in using only sound and texture. No sight words. Stop at five minutes even if you are enjoying it.' },
-  { id: 'wu-object', minutes: 5, name: 'Object interrogation',
+  { id: 'wu-object', needsStory: true, minutes: 5, name: 'Object interrogation',
     prompt: 'Pick something your protagonist owns. Write 100 words on how it came into their possession. You will probably never use this.' },
   { id: 'wu-overheard', minutes: 5, name: 'Overheard',
     prompt: 'Write ten lines of dialogue with no attribution and no action beats. Two people, one room. Make it clear who is speaking from rhythm alone.' },
   { id: 'wu-lastline', minutes: 4, name: 'Last line first',
     prompt: 'Write the closing sentence of a scene that does not exist yet. Do not write the scene.' },
-  { id: 'wu-verbs', minutes: 5, name: 'Verb hunt',
+  { id: 'wu-verbs', needsStory: true, minutes: 5, name: 'Verb hunt',
     prompt: 'Take a paragraph you wrote last session. Replace every verb doing no work. Notice how many were "was".' },
-  { id: 'wu-weather', minutes: 6, name: 'Weather three ways',
+  { id: 'wu-weather', needsStory: true, minutes: 6, name: 'Weather three ways',
     prompt: "Describe today's weather neutrally. Then as your protagonist on their best day. Then on their worst. Same weather, three paragraphs." },
   { id: 'wu-twosentence', minutes: 4, name: 'Two-sentence scene',
     prompt: 'A complete conflict in exactly two sentences. Setup and detonation. Write three of them.' },
@@ -38,25 +43,25 @@ const WARMUPS = [
     prompt: "Write 80 words describing only what a character's hands do during an argument. No faces, no dialogue." },
   { id: 'wu-lie', minutes: 5, name: 'The tell',
     prompt: 'A character tells a small, unnecessary lie. Write the moment, including the thing that gives them away to someone paying attention.' },
-  { id: 'wu-therefore', minutes: 6, name: 'Therefore / but',
+  { id: 'wu-therefore', needsStory: true, minutes: 6, name: 'Therefore / but',
     prompt: 'Write five sentences about your story in the form "X happens, therefore Y happens." If you catch yourself writing "and then", the link is broken. This is the muscle the whole novel runs on.' },
   { id: 'wu-roomafter', minutes: 5, name: 'The room after',
     prompt: 'Describe a space immediately after something violent or tender happened in it. Never say what happened.' },
-  { id: 'wu-smell', minutes: 4, name: 'Smell memory',
+  { id: 'wu-smell', needsStory: true, minutes: 4, name: 'Smell memory',
     prompt: 'Write 100 words set off by a smell your protagonist would recognise instantly and wish they did not.' },
   { id: 'wu-samewant', minutes: 6, name: 'Same want',
     prompt: 'Eight lines of dialogue where both people want the exact same thing and are still fighting. Agreement is not the same as peace.' },
   { id: 'wu-bodyfirst', minutes: 5, name: 'Body first',
     prompt: 'Write a paragraph of intense emotion using only physical sensation. No emotion words at all. No "felt".' },
-  { id: 'wu-neversay', minutes: 4, name: 'Never say',
+  { id: 'wu-neversay', needsStory: true, minutes: 4, name: 'Never say',
     prompt: 'List twenty things your protagonist would never say out loud. Go fast. The last five are the useful ones.' },
   { id: 'wu-interrupt', minutes: 5, name: 'The interruption',
     prompt: 'Start a scene. Interrupt it at the worst possible moment. Stop writing. Do not resolve it.' },
-  { id: 'wu-borrowed', minutes: 6, name: 'Borrowed voice',
+  { id: 'wu-borrowed', needsStory: true, minutes: 6, name: 'Borrowed voice',
     prompt: 'Write 100 words about your own story in the voice of a writer you love. Steal the rhythm, not the words. Then read it back and find the one sentence that is actually yours.' },
   { id: 'wu-negative', minutes: 5, name: 'Negative space',
     prompt: 'Describe a character entirely by what is missing from their room. No people in the scene.' },
-  { id: 'wu-witness', minutes: 6, name: 'The witness',
+  { id: 'wu-witness', needsStory: true, minutes: 6, name: 'The witness',
     prompt: 'Describe your protagonist from the point of view of someone who finds them exhausting. Be fair to the observer.' },
   { id: 'wu-silence', minutes: 5, name: 'Silence',
     prompt: 'Write a scene where the important thing goes unsaid. The reader should know exactly what it is.' },
@@ -64,7 +69,7 @@ const WARMUPS = [
     prompt: 'A completely ordinary object stops your character getting what they want. No magic, no villains. Two hundred words.' },
   { id: 'wu-fiveopenings', minutes: 5, name: 'Five openings',
     prompt: 'Write five first lines for a scene you have not planned. Keep none of them. The point is the throat-clearing, not the lines.' },
-  { id: 'wu-consequence', minutes: 6, name: 'Consequence chain',
+  { id: 'wu-consequence', needsStory: true, minutes: 6, name: 'Consequence chain',
     prompt: 'Take something small your protagonist did in the last thing you wrote. Follow it three steps forward. Who else does it touch?' },
   { id: 'wu-onegesture', minutes: 4, name: 'One gesture',
     prompt: 'A single physical gesture that tells us a whole relationship. Write the gesture, then the sentence of context that makes it land.' },
@@ -234,8 +239,13 @@ const BEAT_TASKS = {
 
 // Rotate deterministically by day index so a re-render never swaps the
 // exercise mid-session, but consecutive days always differ.
-function pickWarmup(dayIndex) {
-  return WARMUPS[((dayIndex % WARMUPS.length) + WARMUPS.length) % WARMUPS.length];
+function warmupPool(hasStory) {
+  return hasStory ? WARMUPS : WARMUPS.filter((w) => !w.needsStory);
+}
+
+function pickWarmup(dayIndex, hasStory) {
+  const pool = warmupPool(hasStory !== false);
+  return pool[((dayIndex % pool.length) + pool.length) % pool.length];
 }
 
 function pickCooldown(dayIndex) {

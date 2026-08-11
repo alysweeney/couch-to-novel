@@ -162,7 +162,8 @@ function programState(project, entries) {
   const taskNumber = currentTask ? beatTasks.indexOf(currentTask) + 1 : beatTasks.length;
 
   const inBlueprint = project.phase === 'blueprint';
-  const warmup = pickWarmup(elapsedDays);
+  const hasStory = !inBlueprint || (project.characters || []).length > 0;
+  const warmup = pickWarmup(elapsedDays, hasStory);
   // The drafting cool-downs all assume prose happened today, which it hasn't
   // during the blueprint.
   const cooldown = inBlueprint ? pickBlueprintCooldown(elapsedDays) : pickCooldown(elapsedDays);
@@ -816,8 +817,10 @@ function renderToday() {
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip("Today's note", 'saved with this session &middot; read it back in Trends')}
-      <label for="cd-note">Your note</label>
-      <textarea id="cd-note" placeholder="A line or two. This is the one you will thank yourself for.">${escapeHtml(todayEntry.note || '')}</textarea>
+      ${todayEntry.cooledDown
+        ? `<div class="note-saved">${escapeHtml(todayEntry.note || 'No note today.')}</div>`
+        : `<label for="cd-note">Your note</label>
+           <textarea id="cd-note" placeholder="A line or two. This is the one you will thank yourself for.">${escapeHtml(todayEntry.note || '')}</textarea>`}
       <div style="height:12px"></div>
       <div class="btn-row">
         <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Save and finish'}</button>
@@ -1149,8 +1152,10 @@ function renderBlueprintSession(project, entries, state) {
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip("Today's note", 'saved with this session &middot; read it back in Trends')}
-      <label for="cd-note">Your note</label>
-      <textarea id="cd-note" placeholder="A line or two. This is the one you will thank yourself for.">${escapeHtml(todayEntry.note || '')}</textarea>
+      ${todayEntry.cooledDown
+        ? `<div class="note-saved">${escapeHtml(todayEntry.note || 'No note today.')}</div>`
+        : `<label for="cd-note">Your note</label>
+           <textarea id="cd-note" placeholder="A line or two. This is the one you will thank yourself for.">${escapeHtml(todayEntry.note || '')}</textarea>`}
       <div style="height:12px"></div>
       <div class="btn-row">
         <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Save and finish'}</button>
@@ -1921,6 +1926,34 @@ function renderLearn() {
 
 // ---------- Map ----------
 
+
+// One-time cleanup for writing done before the per-session split. The shared
+// field can only have been written by whichever session came first with that
+// artifact, so that is where it belongs. Runs once, then the legacy fields
+// stay empty forever.
+async function migrateLegacyNotes() {
+  const project = projectCache;
+  if (!project) return false;
+  const bp = project.blueprint || {};
+  const notes = { ...(project.sessionNotes || {}) };
+  const nextBp = { ...bp };
+  let moved = false;
+
+  ['notes', 'premise', 'theme'].forEach((field) => {
+    const text = (bp[field] || '').trim();
+    if (!text) return;
+    const owner = BLUEPRINT_TASKS.find((t) => t.artifact === field);
+    if (!owner || (notes[owner.id] || '').trim()) return;
+    notes[owner.id] = bp[field];
+    nextBp[field] = '';
+    moved = true;
+  });
+
+  if (!moved) return false;
+  await saveProject({ blueprint: nextBp, sessionNotes: notes });
+  return true;
+}
+
 function renderStory() {
   const project = projectCache;
   const state = programState(project, sortedEntries());
@@ -1943,7 +1976,6 @@ function renderStory() {
       ${field('Logline', 'logline', bp.logline)}
       ${bp.premise ? field('Premise', 'premise', bp.premise) : ''}
       ${bp.theme ? field('Theme', 'theme', bp.theme) : ''}
-      ${bp.notes ? field('Notes', 'notes', bp.notes) : ''}
     </div>`;
 
   const sessionNotes = project.sessionNotes || {};
@@ -2425,6 +2457,7 @@ if (Cloud.isConfigured) {
     unsubProject = Cloud.subscribeProject(user.uid, (project) => {
       projectCache = project;
       render();
+      if (project) migrateLegacyNotes();
     });
     unsubEntries = Cloud.subscribeEntries(user.uid, (entries) => {
       entriesCache = entries;

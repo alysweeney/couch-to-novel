@@ -74,6 +74,17 @@ followed by fallback characters that must be skipped, or every em dash adds a
 phantom `?` to the word count. Both were found by testing against real
 `textutil` output rather than hand-written samples — generate real fixtures.
 
+**2026-08-11 — An all-green suite means the checks are too easy.** Two rounds
+of adversarial cases were added specifically looking for failures; the first
+round found none, which meant the round was too soft rather than the app being
+sound. The second round found one, and the finding turned out to be a bad
+assertion. That is the expected shape — validate the check before believing it.
+
+**2026-08-11 — One check, one criterion.** The one apparent failure came from
+an assertion testing two vague things at once (`drift changed OR drift is
+zero`). It flagged correct behaviour. A check that can't say precisely what it
+expects can't tell you what broke.
+
 ## Retired
 
 *(nothing yet — when a check stops applying, move it here with the date and the

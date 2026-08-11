@@ -24,6 +24,18 @@ cat test/dom-stub.js beats.js curriculum.js blueprint.js lessons.js /tmp/c2n-app
 echo
 AUDIT=$(mktemp /tmp/c2n-audit-XXXXXX.js)
 cat curriculum.js blueprint.js test/phase-audit.js > "$AUDIT"
-"$JSC" "$AUDIT"
+"$JSC" "$AUDIT" || exit 1
 rm -f "$AUDIT"
+
+echo
+# app.js up to the Storage marker is the pure maths; the export builder sits
+# after it and is pulled in separately.
+sed -n '1,/^\/\/ ---------- Storage/p' /tmp/c2n-app.js > /tmp/c2n-math.js
+# The range ends ON the next function's opening line, which would leave an
+# unbalanced brace -- drop it.
+sed -n '/^function blueprintMarkdown/,/^function downloadBlueprint/p' /tmp/c2n-app.js | sed '$d' >> /tmp/c2n-math.js
+EDGES=$(mktemp /tmp/c2n-edges-XXXXXX.js)
+cat beats.js curriculum.js blueprint.js lessons.js /tmp/c2n-math.js test/edges.js > "$EDGES"
+"$JSC" "$EDGES"
+rm -f "$EDGES" /tmp/c2n-math.js
 rm -f /tmp/c2n-app.js

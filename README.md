@@ -129,6 +129,11 @@ Two checks.
 and fails on any exception. It asserts almost nothing about output — its job is
 to make each function actually run.
 
+**Edge cases** asks whether the maths stays honest when the inputs are stupid:
+the deadline passed, the target already beaten, zero values, words deleted
+between syncs, two entries on one date, a ninety-day gap, hostile text, and a
+project document heavy enough to test the Firestore size cap.
+
 **Phase audit** guards the rule that anything the programme tells you to do
 *today* must be doable at the stage you are at. "Pick something your protagonist
 owns" is a fine warm-up and an impossible one in module 1, when you have no
@@ -141,6 +146,10 @@ That distinction earned itself. A syntax check reported the app healthy while
 blank: a `const` read one line above its own declaration parses perfectly and
 dies on evaluation. Anything that changes a render path should be run through
 this before deploying.
+
+Three suites rather than one, because they fail for different reasons and a
+merged run wouldn't localise: *does it run*, *is the maths honest*, *is it
+askable yet*.
 
 Needs no install — JavaScriptCore ships with macOS.
 

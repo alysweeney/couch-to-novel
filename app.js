@@ -693,6 +693,8 @@ function renderToday() {
   const step = !todayEntry.warmedUp ? 1 : loggedToday === 0 ? 2 : 3;
   const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
   const primary = (n) => (n === step ? ' btn-primary' : '');
+  const rowCls = (n) => (n < step ? ' is-done' : n === step ? ' is-current' : '');
+  const stepN = (n) => `<span class="step-n">${n < step ? '✓' : n}</span>`;
 
   let structural;
   if (state.inOnRamp) {
@@ -724,7 +726,7 @@ function renderToday() {
 
   const warmupCard = `
     <div class="card ${stepCls(1)}">
-      <div class="eyebrow"><span class="step-n">1</span>Warm-up &middot; ${state.warmup.minutes} min &middot; not the manuscript</div>
+      <div class="eyebrow">${stepN(1)}Warm-up &middot; ${state.warmup.minutes} min &middot; not the manuscript</div>
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
       ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
@@ -763,7 +765,7 @@ function renderToday() {
       : 'the only writing that counts toward your word target';
     mainCard = `
       <div class="card ${stepCls(2)}">
-        <div class="eyebrow"><span class="step-n">2</span>${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
+        <div class="eyebrow">${stepN(2)}${focus.kind === 'moment' ? 'Scene due' : 'Current beat'} &middot; ${escapeHtml(focus.name)}</div>
         ${t ? `
           <h2>${escapeHtml(t.label)}</h2>
           <div class="session-meta">Assignment ${state.taskNumber} of ${state.beatTasks.length} &middot; may take more than one session</div>
@@ -775,7 +777,7 @@ function renderToday() {
           <h2>${escapeHtml(focus.name)} is written</h2>
           <p class="prose muted">${escapeHtml(focus.summary)}</p>
           ${focus.kind === 'moment' && !state.marks[focus.key]
-            ? `<button class="btn btn-primary" id="mark-beat">Tick off ${escapeHtml(focus.name)}</button>`
+            ? `<button class="btn${primary(2)}" id="mark-beat">Tick off ${escapeHtml(focus.name)}</button>`
             : `<p class="prose muted" style="margin:0">Keep going. The word count moves you into the next beat.</p>`}
         `}
       </div>`;
@@ -809,12 +811,12 @@ function renderToday() {
 
   const cooldownCard = `
     <div class="card ${stepCls(3)}">
-      <div class="eyebrow"><span class="step-n">3</span>Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
+      <div class="eyebrow">${stepN(3)}Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
+      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
     </div>`;
 
   // The rail answers "what's left of today", not "where am I in the
@@ -825,13 +827,13 @@ function renderToday() {
     <div class="panel">
       <div class="eyebrow">This session</div>
       <div class="checklist">
-        <div class="check-row${todayEntry.warmedUp ? ' is-done' : ''}">
+        <div class="check-row${rowCls(1)}">
           <div class="check-mark">✓</div><div class="check-label">Warm-up</div>
         </div>
-        <div class="check-row${sessionDone ? ' is-done' : ' is-current'}">
+        <div class="check-row${rowCls(2)}">
           <div class="check-mark">✓</div><div class="check-label">${sessionDone ? `${fmt(loggedToday)} words` : `${fmt(state.dailyTarget)} words`}</div>
         </div>
-        <div class="check-row${todayEntry.cooledDown ? ' is-done' : ''}">
+        <div class="check-row${rowCls(3)}">
           <div class="check-mark">✓</div><div class="check-label">Cool-down</div>
         </div>
       </div>
@@ -1068,7 +1070,11 @@ function renderBlueprintSession(project, entries, state) {
   const bpSessionDone = !!todayEntry.sessionDone;
   const step = !todayEntry.warmedUp ? 1 : !bpSessionDone ? 2 : 3;
   const stepCls = (n) => `step ${n === step ? 'is-current' : n < step ? 'is-done' : 'is-upcoming'}`;
-  const primary = (n) => (n === step ? ' btn-primary' : '');
+  // While the genre prompt is up it is the one thing to do, so the step
+  // buttons stand down rather than competing with it for the eye.
+  const primary = (n) => (n === step && !state.genreConfirmDue ? ' btn-primary' : '');
+  const rowCls = (n) => (n < step ? ' is-done' : n === step ? ' is-current' : '');
+  const stepN = (n) => `<span class="step-n">${n < step ? '✓' : n}</span>`;
 
   const headerCard = `
     <div class="panel">
@@ -1093,7 +1099,7 @@ function renderBlueprintSession(project, entries, state) {
 
   const warmupCard = `
     <div class="card ${stepCls(1)}">
-      <div class="eyebrow"><span class="step-n">1</span>Warm-up &middot; ${state.warmup.minutes} min</div>
+      <div class="eyebrow">${stepN(1)}Warm-up &middot; ${state.warmup.minutes} min</div>
       <h2>${escapeHtml(state.warmup.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.warmup.prompt)}</p>
       ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
@@ -1106,7 +1112,7 @@ function renderBlueprintSession(project, entries, state) {
 
   const mainCard = task
     ? `<div class="card ${stepCls(2)}">
-         <div class="eyebrow"><span class="step-n">2</span>Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length} &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
+         <div class="eyebrow">${stepN(2)}Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length} &middot; ${task.minutes} min &middot; writes your ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}</div>
          <h2>${escapeHtml(task.name)}</h2>
          <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
          ${homeStrip(`Story tab &rarr; ${escapeHtml(ARTIFACT_LABEL[task.artifact] || task.artifact)}`, 'in this app &middot; exportable to Scrivener any time')}
@@ -1125,12 +1131,12 @@ function renderBlueprintSession(project, entries, state) {
 
   const cooldownCard = `
     <div class="card ${stepCls(3)}">
-      <div class="eyebrow"><span class="step-n">3</span>Cool-down &middot; ${state.cooldown.minutes} min</div>
+      <div class="eyebrow">${stepN(3)}Cool-down &middot; ${state.cooldown.minutes} min</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
       ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.cooledDown ? '' : ' btn-primary'}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
+      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? '✓ Cooled down' : 'Done'}</button>
     </div>`;
 
   const bpMod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
@@ -1138,13 +1144,13 @@ function renderBlueprintSession(project, entries, state) {
     <div class="panel">
       <div class="eyebrow">This session</div>
       <div class="checklist">
-        <div class="check-row${todayEntry.warmedUp ? ' is-done' : ''}">
+        <div class="check-row${rowCls(1)}">
           <div class="check-mark">✓</div><div class="check-label">Warm-up</div>
         </div>
-        <div class="check-row${task ? ' is-current' : ' is-done'}">
+        <div class="check-row${rowCls(2)}">
           <div class="check-mark">✓</div><div class="check-label">${task ? `Session ${state.bpDone + 1} of ${BLUEPRINT_TASKS.length}` : 'Blueprint complete'}</div>
         </div>
-        <div class="check-row${todayEntry.cooledDown ? ' is-done' : ''}">
+        <div class="check-row${rowCls(3)}">
           <div class="check-mark">✓</div><div class="check-label">Cool-down</div>
         </div>
       </div>

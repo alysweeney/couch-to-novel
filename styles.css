@@ -819,18 +819,41 @@ textarea { resize: vertical; min-height: 74px; }
 
 /* Sequence: the step you're on carries full weight, the ones behind you
    recede, the ones ahead stay quiet. */
-.step { position: relative; }
-.step.is-current { box-shadow: var(--shadow-md); }
+.step { position: relative; transition: opacity 0.15s ease; }
+
+/* The step you're on: tinted, edged, lifted. It should be obvious from across
+   the room which card is asking for something. */
+.step.is-current {
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--tone) 38%, var(--border));
+  background: color-mix(in srgb, var(--tone) 4%, var(--surface));
+}
 .step.is-current::before {
   content: '';
   position: absolute;
-  left: 0; top: 18px; bottom: 18px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
+  left: -1px; top: -1px; bottom: -1px;
+  width: 5px;
+  border-radius: var(--radius) 0 0 var(--radius);
   background: var(--tone);
 }
-.step.is-done { opacity: 0.55; }
-.step.is-done:hover { opacity: 0.85; }
+.step.is-current .eyebrow { color: var(--tone-deep); }
+.step.is-current h2 { color: var(--tone-deep); }
+
+/* A finished step collapses to its title and its undo. The detail is still
+   one click away, but it stops competing for attention with the work left. */
+.step.is-done { opacity: 0.62; padding-top: 16px; padding-bottom: 16px; }
+.step.is-done:hover { opacity: 1; }
+.step.is-done h2 { font-size: 19px; margin-bottom: 0; }
+.step.is-done .beat-prompt,
+.step.is-done .home-strip,
+.step.is-done .lesson-practice,
+.step.is-done .session-meta { display: none; }
+.step.is-done .btn-row { margin-top: 12px; }
+.step.is-done .btn { padding: 9px 16px; font-size: 13px; }
+
+/* Ahead of you: present, legible, plainly not now. */
+.step.is-upcoming { box-shadow: none; border-color: color-mix(in srgb, var(--border) 70%, transparent); }
+.step.is-upcoming h2 { color: var(--muted); }
 .step-n {
   display: inline-grid;
   place-items: center;
@@ -844,3 +867,5 @@ textarea { resize: vertical; min-height: 74px; }
   vertical-align: 1px;
 }
 .step.is-current .step-n { background: var(--tone); color: var(--cream); }
+.step.is-done .step-n { background: var(--tone); color: var(--cream); }
+.step.is-upcoming .step-n { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1.5px var(--rule); }

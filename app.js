@@ -789,7 +789,7 @@ function renderBlueprintSession(project, entries, state) {
       ${BLUEPRINT_MODULES.map((m) => {
         const ts = blueprintTasksForModule(m.id);
         const done = ts.filter((t) => state.bpMarks[t.id]).length;
-        return `<div class="lesson-row" style="cursor:default">
+        return `<div class="lesson-row" data-gotolearn="1">
           <div class="lesson-mark">${done === ts.length ? '✓' : done ? '◐' : '○'}</div>
           <div>
             <div class="lesson-title">Module ${m.id}: ${escapeHtml(m.name)}</div>
@@ -797,6 +797,8 @@ function renderBlueprintSession(project, entries, state) {
           </div>
         </div>`;
       }).join('')}
+      <div style="height:12px"></div>
+      <button class="btn" id="see-all-sessions">See all ${BLUEPRINT_TASKS.length} sessions</button>
     </div>`;
 
   const wrap = el(`
@@ -819,6 +821,11 @@ function renderBlueprintSession(project, entries, state) {
     await startDrafting();
   });
 
+  wrap.querySelectorAll('[data-gotolearn]').forEach((n) => {
+    n.addEventListener('click', () => navigate('learn'));
+  });
+  wrap.querySelector('#see-all-sessions').addEventListener('click', () => navigate('learn'));
+
   const open = wrap.querySelector('#bp-open');
   if (open) open.addEventListener('click', () => openArtifactEditor(task.artifact));
   const done = wrap.querySelector('#bp-done');
@@ -830,6 +837,49 @@ function renderBlueprintSession(project, entries, state) {
   }
 
   return wrap;
+}
+
+function openBlueprintTask(task) {
+  const project = projectCache;
+  const marks = project.blueprintMarks || {};
+  const done = !!marks[task.id];
+  const mod = BLUEPRINT_MODULES.find((m) => m.id === task.module);
+  const n = BLUEPRINT_TASKS.indexOf(task) + 1;
+
+  const modal = el(`
+    <div class="modal-backdrop">
+      <div class="modal-card">
+        <div class="eyebrow">Session ${n} of ${BLUEPRINT_TASKS.length} &middot; ${escapeHtml(mod ? mod.name : '')} &middot; ${task.minutes} min</div>
+        <h2>${escapeHtml(task.name)}</h2>
+        <p class="beat-prompt">${escapeHtml(task.prompt)}</p>
+        <div class="lesson-practice">
+          <div class="eyebrow" style="margin-bottom:4px">Why</div>
+          ${escapeHtml(task.help)}
+        </div>
+        <div style="height:16px"></div>
+        <button class="btn btn-primary" id="bpt-open">Open your ${escapeHtml((ARTIFACT_LABEL[task.artifact] || '').toLowerCase())}</button>
+        <div style="height:8px"></div>
+        <button class="btn" id="bpt-done">${done ? '✓ Done — mark undone' : 'Mark done'}</button>
+        <div style="height:8px"></div>
+        <button class="btn btn-ghost" id="bpt-close" style="width:100%">Close</button>
+      </div>
+    </div>`);
+
+  modal.querySelector('#bpt-open').addEventListener('click', () => {
+    modal.remove();
+    openArtifactEditor(task.artifact);
+  });
+  modal.querySelector('#bpt-done').addEventListener('click', async () => {
+    const next = { ...marks };
+    if (done) delete next[task.id];
+    else next[task.id] = { date: todayStr() };
+    await saveProject({ blueprintMarks: next });
+    modal.remove();
+    render();
+  });
+  modal.querySelector('#bpt-close').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+  document.getElementById('modal-root').appendChild(modal);
 }
 
 // ---------- Artifact editors ----------
@@ -1258,16 +1308,58 @@ function renderLearn() {
       </div>`;
   }).join('');
 
+  // The blueprint sessions are part of the course and belong here too, not
+  // only on whichever one happens to be today's.
+  const bpDoneCount = BLUEPRINT_TASKS.filter((t) => state.bpMarks[t.id]).length;
+  const bpModules = BLUEPRINT_MODULES.map((m) => {
+    const ts = blueprintTasksForModule(m.id);
+    const doneN = ts.filter((t) => state.bpMarks[t.id]).length;
+    const rows = ts.map((t) => {
+      const isDone = !!state.bpMarks[t.id];
+      const isNext = state.bpTask && state.bpTask.id === t.id;
+      return `
+        <div class="lesson-row${isDone ? ' is-read' : ''}" data-bp="${t.id}">
+          <div class="lesson-mark">${isDone ? '✓' : isNext ? '▶' : '○'}</div>
+          <div>
+            <div class="lesson-title">${escapeHtml(t.name)}${isNext ? ' <span class="pill" style="font-size:10px">next</span>' : ''}</div>
+            <div class="lesson-sub">${t.minutes} min &middot; writes your ${escapeHtml((ARTIFACT_LABEL[t.artifact] || t.artifact).toLowerCase())}</div>
+          </div>
+        </div>`;
+    }).join('');
+    return `
+      <div class="card">
+        <div class="eyebrow">Blueprint module ${m.id} &middot; ${doneN}/${ts.length} done</div>
+        <h2>${escapeHtml(m.name)}</h2>
+        <p class="prose muted" style="margin-bottom:10px">${escapeHtml(m.blurb)}</p>
+        ${rows}
+      </div>`;
+  }).join('');
+
+  const bpHeader = `
+    <div class="card">
+      <div class="eyebrow">Before the draft</div>
+      <h2>Blueprint &middot; ${bpDoneCount} of ${BLUEPRINT_TASKS.length} done</h2>
+      <p class="prose muted" style="margin:0">Thirty sessions that turn an idea into a scene list. Unlike the lessons below, these are not gated &mdash; work through them in order, or jump to whichever one you need.</p>
+    </div>`;
+
   const wrap = el(`
     <div>
+      ${bpHeader}
+      ${bpModules}
       <div class="card">
         <div class="eyebrow">The course</div>
         <h2>${state.unlockedLessons.length} of ${state.availableLessons.length} unlocked</h2>
-        <p class="prose muted" style="margin:0">Lessons unlock as your manuscript reaches each beat, so one arrives when you're about to need it rather than all at once.</p>
+        <p class="prose muted" style="margin:0">Craft lessons unlock as your manuscript reaches each beat, so one arrives when you're about to need it rather than all at once.</p>
       </div>
       ${modules}
     </div>
   `);
+
+  wrap.querySelectorAll('[data-bp]').forEach((row) => {
+    row.addEventListener('click', () => {
+      openBlueprintTask(BLUEPRINT_TASKS.find((t) => t.id === row.dataset.bp));
+    });
+  });
 
   wrap.querySelectorAll('.lesson-row').forEach((row) => {
     if (row.classList.contains('is-locked')) return;

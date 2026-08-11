@@ -111,6 +111,12 @@ service cloud.firestore {
 
 This scopes every user to only their own project doc and their own sessions.
 
+## Checks and tests
+
+`CHECKS.md` holds corrections that have already happened once, dated and
+forward-only, so they can't happen twice. Read it before changing a render path
+or adding session content.
+
 ## Tests
 
 ```

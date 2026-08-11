@@ -734,7 +734,7 @@ function renderToday() {
       ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
       <div style="height:12px"></div>
       <div class="btn-row">
-        <button class="btn${primary(1)}" id="warmup-write">Write it here</button>
+        <button class="btn${primary(1)}" id="warmup-write">${todayEntry.warmedUp ? 'Write another' : 'Write it here'}</button>
         <button class="btn" id="warmup-done">${todayEntry.warmedUp ? 'Undo' : 'Mark done'}</button>
       </div>
     </div>`;
@@ -1113,7 +1113,7 @@ function renderBlueprintSession(project, entries, state) {
       ${homeStrip('Warm-ups tab', 'in this app &middot; never counted toward your novel')}
       <div style="height:12px"></div>
       <div class="btn-row">
-        <button class="btn${primary(1)}" id="warmup-write">Write it here</button>
+        <button class="btn${primary(1)}" id="warmup-write">${todayEntry.warmedUp ? 'Write another' : 'Write it here'}</button>
         <button class="btn" id="warmup-done">${todayEntry.warmedUp ? 'Undo' : 'Mark done'}</button>
       </div>
     </div>`;

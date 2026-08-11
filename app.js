@@ -805,8 +805,6 @@ function renderToday() {
       <label for="log-words">Words written today</label>
       <input id="log-words" type="number" inputmode="numeric" min="0" step="10" value="${loggedToday || ''}" placeholder="0" />
       <button class="btn btn-ghost" id="paste-count" style="margin-top:6px">or paste today's writing and count it</button>
-      <label for="log-note">Note (optional)</label>
-      <textarea id="log-note" placeholder="What happened in the story today?">${escapeHtml(todayEntry.note || '')}</textarea>
       <div style="height:14px"></div>
       <button class="btn${scrivHandle ? '' : primary(2)}" id="log-save">Save today</button>
     </div>`;
@@ -816,9 +814,13 @@ function renderToday() {
       <div class="eyebrow">${stepN(3)}Cool-down &middot; ${state.cooldown.minutes} min &middot; do not skip this one</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
-      ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
+      ${homeStrip("Today's note", 'saved with this session &middot; read it back in Trends')}
+      <label for="cd-note">Your note</label>
+      <textarea id="cd-note" placeholder="A line or two. This is the one you will thank yourself for.">${escapeHtml(todayEntry.note || '')}</textarea>
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Done'}</button>
+      <div class="btn-row">
+        <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Save and finish'}</button>
+      </div>
     </div>`;
 
   // The rail answers "what's left of today", not "where am I in the
@@ -874,7 +876,11 @@ function renderToday() {
   });
 
   wrap.querySelector('#cooldown-done').addEventListener('click', async () => {
-    await patchTodayEntry({ cooledDown: !todayEntry.cooledDown });
+    const noteEl = wrap.querySelector('#cd-note');
+    await patchTodayEntry({
+      cooledDown: !todayEntry.cooledDown,
+      note: noteEl ? noteEl.value.trim() : (todayEntry.note || ''),
+    });
     render();
   });
 
@@ -930,9 +936,8 @@ function renderToday() {
 
   wrap.querySelector('#log-save').addEventListener('click', async (ev) => {
     const words = Number(wrap.querySelector('#log-words').value) || 0;
-    const note = wrap.querySelector('#log-note').value.trim();
     ev.target.disabled = true;
-    await logToday(words, note);
+    await logToday(words, todayEntry.note || '');
     render();
   });
 
@@ -1142,9 +1147,13 @@ function renderBlueprintSession(project, entries, state) {
       <div class="eyebrow">${stepN(3)}Cool-down &middot; ${state.cooldown.minutes} min</div>
       <h2>${escapeHtml(state.cooldown.name)}</h2>
       <p class="beat-prompt">${escapeHtml(state.cooldown.prompt)}</p>
-      ${homeStrip('Wherever you draft', 'a note to your future self &middot; nothing is saved here', 'nowhere')}
+      ${homeStrip("Today's note", 'saved with this session &middot; read it back in Trends')}
+      <label for="cd-note">Your note</label>
+      <textarea id="cd-note" placeholder="A line or two. This is the one you will thank yourself for.">${escapeHtml(todayEntry.note || '')}</textarea>
       <div style="height:12px"></div>
-      <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Done'}</button>
+      <div class="btn-row">
+        <button class="btn${todayEntry.cooledDown ? '' : primary(3)}" id="cooldown-done">${todayEntry.cooledDown ? 'Undo' : 'Save and finish'}</button>
+      </div>
     </div>`;
 
   const bpMod = task ? BLUEPRINT_MODULES.find((m) => m.id === task.module) : null;
@@ -1180,7 +1189,11 @@ function renderBlueprintSession(project, entries, state) {
     render();
   });
   wrap.querySelector('#cooldown-done').addEventListener('click', async () => {
-    await patchTodayEntry({ cooledDown: !todayEntry.cooledDown });
+    const noteEl = wrap.querySelector('#cd-note');
+    await patchTodayEntry({
+      cooledDown: !todayEntry.cooledDown,
+      note: noteEl ? noteEl.value.trim() : (todayEntry.note || ''),
+    });
     render();
   });
   const gcBtn = wrap.querySelector('#confirm-genre');
@@ -1495,7 +1508,7 @@ function openSceneEditor(sceneId, task) {
 // This is the door out: one Markdown file you can drop into Scrivener's
 // Research folder, mail to yourself, or keep. Plain text on purpose -- it
 // should still be readable in ten years without this app.
-function blueprintMarkdown(project, warmups) {
+function blueprintMarkdown(project, warmups, entries) {
   const bp = project.blueprint || {};
   const out = [];
   const section = (title, body) => { if (body && body.trim()) out.push(`## ${title}\n\n${body.trim()}\n`); };
@@ -1544,6 +1557,17 @@ function blueprintMarkdown(project, warmups) {
     out.push('');
   }
 
+  // Cool-down notes are the running record of how the thinking moved. Read in
+  // sequence they show the story changing its mind, which no single note does.
+  const noted = (entries || []).filter((e) => (e.note || '').trim());
+  if (noted.length) {
+    out.push('## Session notes\n');
+    noted.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => {
+      out.push(`**${formatDate(e.date)}**${e.words ? ` — ${fmt(e.words)} words` : ''}  `);
+      out.push(`${e.note}\n`);
+    });
+  }
+
   if (warmups && warmups.length) {
     out.push('## Warm-up writing\n');
     warmups.slice().sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((w) => {
@@ -1557,7 +1581,7 @@ function blueprintMarkdown(project, warmups) {
 }
 
 function downloadBlueprint(includeWarmups) {
-  const md = blueprintMarkdown(projectCache, includeWarmups ? warmupsCache : null);
+  const md = blueprintMarkdown(projectCache, includeWarmups ? warmupsCache : null, entriesCache);
   const blob = new Blob([md], { type: 'text/markdown' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2001,7 +2025,7 @@ function renderStory() {
       ${homeStrip('Warm-ups tab', 'exercises &middot; never counted')}
       ${homeStrip('Story tab', 'logline, premise, theme, cast, beats, scene summaries')}
       ${homeStrip('Scrivener &rarr; Manuscript', 'the novel itself &middot; the only thing counted', 'external')}
-      ${homeStrip('Nowhere', 'cool-down notes are for you, not for the app', 'nowhere')}
+      ${homeStrip("Today's note", 'cool-downs, saved per session &middot; visible in Trends')}
     </div>`;
 
   const exportCard = `

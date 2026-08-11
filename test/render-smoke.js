@@ -100,8 +100,10 @@ projectCache = baseProject({
 });
 tryRender('story, fully populated', function () { renderStory(); });
 tryRender('blueprint export builds', function () {
-  blueprintMarkdown(projectCache, [{ id: 'w', date: today, exerciseId: 'wu-sensory', text: 'hi there' }]);
+  blueprintMarkdown(projectCache, [{ id: 'w', date: today, exerciseId: 'wu-sensory', text: 'hi there' }],
+    [{ id: 'e', date: today, words: 900, note: 'decided she leaves first' }]);
 });
+tryRender('export with nothing in it', function () { blueprintMarkdown(baseProject(), null, []); });
 
 
 print('-- modals and editors --');

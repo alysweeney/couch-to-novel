@@ -111,6 +111,13 @@ service cloud.firestore {
 
 This scopes every user to only their own project doc and their own sessions.
 
+## Asking Claude for help
+
+`COMPANION-PROMPT.md` is a block of context to paste into a Claude Desktop chat.
+It carries the diagnosis behind the app, the craft positions the programme
+takes, and the rules that keep the help useful – demonstrate exercises on
+invented material, never write her novel, and never send her back to planning.
+
 ## Checks and tests
 
 `CHECKS.md` holds corrections that have already happened once, dated and
